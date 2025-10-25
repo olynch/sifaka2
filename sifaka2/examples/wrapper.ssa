@@ -1,0 +1,6 @@
+export function $_start() {
+@start
+  %ret =w call $main()
+  call $exit (w %ret)
+  hlt
+}

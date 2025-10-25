@@ -12,6 +12,8 @@ extra-doc-files: CHANGELOG.md
 library
     exposed-modules:
         Sifaka
+        Sifaka.CodeGen
+        Sifaka.Qbe
         Sifaka.Common
         Sifaka.Elab
         Sifaka.Eval
@@ -26,14 +28,16 @@ library
 
     ghc-options:        -Wall
     build-depends:
-        base ^>=4.19.2.0,
-        transformers,
-        mtl,
-        text,
-        containers,
-        vector,
-        prettyprinter,
-        fnotation ^>=0.2.0.0
+                  base ^>=4.19.2.0,
+                  bytestring >= 0.12.1.0,
+                  containers,
+                  fnotation ^>=0.2.0.0,
+                  mtl,
+                  prettyprinter,
+                  process >= 1.6.25.0,
+                  text,
+                  transformers,
+                  vector
 
 executable sifaka2
     main-is:          Main.hs
@@ -41,8 +45,9 @@ executable sifaka2
     default-language: GHC2021
     ghc-options:      -Wall
     build-depends:
-        base ^>=4.19.2.0,
-        sifaka2
+                  base ^>=4.19.2.0,
+                  bytestring >= 0.12.1.0,
+                  sifaka2
 
 test-suite sifaka2-test
     type:             exitcode-stdio-1.0
@@ -51,5 +56,6 @@ test-suite sifaka2-test
     default-language: GHC2021
     ghc-options:      -Wall
     build-depends:
-        base ^>=4.19.2.0,
-        sifaka2
+                  base ^>=4.19.2.0,
+                  bytestring >= 0.12.1.0,
+                  sifaka2

@@ -1,4 +1,4 @@
-module Sifaka.Syntax (Id(..), BinOp(..), Tm(..), Ty(..), Literal(..)) where
+module Sifaka.Syntax (Id(..), BinOp(..), Tm(..), Ty(..), Literal(..), MetaSub(..)) where
 
 import Sifaka.Common
 
@@ -7,7 +7,8 @@ data Id a = Id BwdIdx Name
 data BinOp = Add | Sub | Mul | Div
 
 data Ty
-  = Fin Tm
+  = TMeta MetaVar MetaSub
+  | Fin Tm
   | Int
   | Double
   | Record (Row Ty)
@@ -18,10 +19,14 @@ data Literal
   | LitFin Int
   | LitDouble Double
 
+data MetaSub = MSId
+
 data Tm
   = LocalVar (Id Tm)
+  | Meta MetaVar MetaSub
   | Lit Literal
   | BinOp BinOp Tm Tm
+  | Block [(Name, Tm)] Tm
   | RecordCon (Row Tm)
   | Proj Tm Name
   | ArrCon [Tm]
