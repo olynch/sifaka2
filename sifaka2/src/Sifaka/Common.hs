@@ -9,6 +9,7 @@ module Sifaka.Common (
     Fwd (..),
     BwdIdx (..),
     Bwd (..),
+    bwdToList,
     Name (..),
     Row (..),
     MetaVar (..),
@@ -70,7 +71,14 @@ instance ElemAt (Bwd a) BwdIdx a where
     elemAt BwdNil _ = impossible
     elemAt (Snoc xs x) i
         | i == 0 = x
-        | otherwise = elemAt xs (i + 1)
+        | otherwise = elemAt xs (i - 1)
+
+bwdToList :: Bwd a -> [a]
+bwdToList b = go b []
+  where
+    go BwdNil xs = xs
+    go (Snoc rest x) xs = go rest (x:xs)
+
 
 ---------------------------------------------------------------------
 

@@ -9,6 +9,7 @@ category:        Language
 build-type:      Simple
 extra-doc-files: CHANGELOG.md
 
+
 library
     exposed-modules:
         Sifaka
@@ -26,7 +27,7 @@ library
         Strict StrictData OverloadedStrings DerivingVia ImplicitParams
         LambdaCase FunctionalDependencies CPP
 
-    ghc-options:        -Wall
+    ghc-options:      -Wall
     build-depends:
                   base ^>=4.19.2.0,
                   bytestring >= 0.12.1.0,
@@ -43,10 +44,17 @@ executable sifaka2
     main-is:          Main.hs
     hs-source-dirs:   app
     default-language: GHC2021
-    ghc-options:      -Wall
+    ghc-options:      -Wall -prof "-with-rtsopts=-xc"
+    default-extensions:
+        Strict StrictData OverloadedStrings DerivingVia ImplicitParams
+        LambdaCase FunctionalDependencies CPP
     build-depends:
                   base ^>=4.19.2.0,
                   bytestring >= 0.12.1.0,
+                  optparse-applicative >= 0.19.0.0,
+                  fnotation,
+                  text,
+                  containers,
                   sifaka2
 
 test-suite sifaka2-test

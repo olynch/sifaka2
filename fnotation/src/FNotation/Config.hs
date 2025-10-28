@@ -19,5 +19,6 @@ instance Ord Prec where
 
 data FNotationConfig = FNotationConfig
   { keywords :: Set ByteString,
+    topdecls :: Set ByteString,
     precedences :: Map Text Prec
   }

@@ -13,7 +13,7 @@ import Data.Vector qualified as V
 import FNotation.Config (Assoc (..), FNotationConfig, Prec (..))
 import FNotation.Config qualified as Config
 import FNotation.Diagnostic (Annot (Here), Diagnostic (Diagnostic), FileId, HasReporter (getReporter), Loc (Loc), Marker (Marker), Reporter, Severity (..), report)
-import FNotation.FNtn (FNtn (..), FNtn0 (..))
+import FNotation.FNtn (FNtn (..), FNtn0 (..), FNtnTop (..))
 import FNotation.FNtn qualified as FNtn
 import FNotation.Parser.ParseState (ParseState (ParseState))
 import FNotation.Parser.ParseState qualified as PS
@@ -261,7 +261,36 @@ expr = do
             Nothing -> error m' $ "could not find precedence for" <+> pretty (show s)
       | otherwise = finishStack stack
 
-parse :: FNotationConfig -> Reporter -> FileId -> [Token] -> ByteString -> IO FNtn
-parse config r fi ts bs = evalStateT (unParser expr) s
+tops :: Parser [FNtnTop]
+tops = go []
+  where
+    go acc = nextTopDecl False >>= \case
+      Just (name, m) -> do
+        n <- expr
+        s <- spanStartingAt m
+        go (FNtnTop name s n : acc)
+      Nothing -> pure $ reverse acc
+    nextTopDecl :: Bool -> Parser (Maybe (Text, Int))
+    nextTopDecl skip = cur >>= \case
+      TOPDECL -> do
+        m <- open
+        advance
+        name <- decodeUtf8 <$> slice m
+        pure $ Just (name, m)
+      EOF -> pure Nothing
+      _ -> if skip then advance >> nextTopDecl True else do
+        m <- open
+        advance
+        error_ m $ "expected a toplevel declaration"
+        nextTopDecl True
+
+runParser :: Parser a -> Reporter -> FNotationConfig -> FileId -> [Token] -> ByteString -> IO a
+runParser action r config fi ts bs = evalStateT (unParser action) s
   where
     s = ParseState config ts bs 0 (BS.length bs - 1) 256 fi r
+
+parse :: Reporter -> FNotationConfig -> FileId -> [Token] -> ByteString -> IO FNtn
+parse = runParser expr
+
+parseTop :: Reporter -> FNotationConfig -> FileId -> [Token] -> ByteString -> IO [FNtnTop]
+parseTop = runParser tops

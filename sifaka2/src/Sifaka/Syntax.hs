@@ -1,4 +1,4 @@
-module Sifaka.Syntax (Id(..), BinOp(..), Tm(..), Ty(..), Literal(..), MetaSub(..)) where
+module Sifaka.Syntax (Id(..), BinOp(..), Tm(..), Ty(..), Literal(..), MetaSub(..), TopDecl(..), Def(..)) where
 
 import Sifaka.Common
 
@@ -32,3 +32,7 @@ data Tm
   | ArrCon [Tm]
   | ArrLam Name Tm
   | Index [Tm] Tm
+
+data Def = Def [(Name, Ty)] Ty Tm
+
+data TopDecl = TDef Def

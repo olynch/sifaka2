@@ -26,6 +26,7 @@ data Tag
   | TAG
   | SPECIAL
   | PRIM
+  | TOPDECL
   | ERROR
   | EOF
   deriving (Show, Eq, Ord)

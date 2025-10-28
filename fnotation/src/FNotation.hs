@@ -1,4 +1,9 @@
-module FNotation (someFunc) where
+module FNotation (
+  module FNotation.Config,
+  module FNotation.Lexer,
+  module FNotation.Parser,
+) where
 
-someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+import FNotation.Config
+import FNotation.Lexer
+import FNotation.Parser

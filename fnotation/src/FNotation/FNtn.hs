@@ -1,6 +1,6 @@
-module FNotation.FNtn (FNtn (..), FNtn0 (..)) where
+module FNotation.FNtn (FNtn (..), FNtn0 (..), FNtnTop (..)) where
 
-import Data.ByteString (ByteString)
+import Data.Text (Text)
 import FNotation.Span
 import Prettyprinter
 import Prelude hiding (span)
@@ -9,17 +9,17 @@ data FNtn = L {span :: Span, fntn0 :: FNtn0}
   deriving (Show)
 
 data FNtn0
-  = Ident ByteString
-  | Keyword ByteString
-  | Field ByteString
-  | Prim ByteString
-  | Special ByteString
-  | Tag ByteString
+  = Ident Text
+  | Keyword Text
+  | Field Text
+  | Prim Text
+  | Special Text
+  | Tag Text
   | App1 FNtn FNtn
   | App2 FNtn FNtn FNtn
   | Int Int
   | Float Double
-  | String ByteString
+  | String Text
   | Tuple [FNtn]
   | Block [FNtn] (Maybe FNtn)
   | Error
@@ -45,3 +45,9 @@ instance Pretty FNtn0 where
 
 instance Pretty FNtn where
   pretty (L _ n0) = pretty n0
+
+data FNtnTop = FNtnTop {
+  fntnTopName :: Text,
+  fntnTopSpan :: Span,
+  fntnTopBody :: FNtn
+}
