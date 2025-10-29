@@ -1,63 +1,78 @@
-cabal-version:   3.0
-name:            fnotation
-version:         0.2.0.0
-license:         BSD-3-Clause
-license-file:    LICENSE
-maintainer:      root@owenlynch.org
-author:          Owen Lynch
-category:        Language
-build-type:      Simple
+cabal-version: 3.0
+name: fnotation
+version: 0.2.0.0
+license: BSD-3-Clause
+license-file: LICENSE
+maintainer: root@owenlynch.org
+author: Owen Lynch
+category: Language
+build-type: Simple
 extra-doc-files: CHANGELOG.md
 
 library
-    exposed-modules:
-        FNotation
-        FNotation.Config
-        FNotation.Diagnostic
-        FNotation.FNtn
-        FNotation.Internal.Util
-        FNotation.Lexer
-        FNotation.Parser
-        FNotation.Parser.ParseState
-        FNotation.Prelude
-        FNotation.Span
-        FNotation.Token
-        FNotation.Util
+  exposed-modules:
+    FNotation
+    FNotation.Config
+    FNotation.Diagnostic
+    FNotation.FNtn
+    FNotation.Internal.Util
+    FNotation.Lexer
+    FNotation.Parser
+    FNotation.Parser.ParseState
+    FNotation.Prelude
+    FNotation.Span
+    FNotation.Token
+    FNotation.Util
 
-    hs-source-dirs:     src
-    default-language:   GHC2021
-    default-extensions:
-        OverloadedStrings QuasiQuotes Strict StrictData LambdaCase RecordWildCards
+  hs-source-dirs: src
+  default-language: GHC2021
+  default-extensions:
+    LambdaCase
+    OverloadedStrings
+    QuasiQuotes
+    RecordWildCards
+    Strict
+    StrictData
 
-    ghc-options:        -Wall -funbox-strict-fields
-    build-depends:
-        base ^>=4.19.2.0,
-        bytestring,
-        containers,
-        mtl,
-        prettyprinter,
-        transformers,
-        utf8-string,
-        vector,
-        text,
-        prettyprinter-ansi-terminal
+  ghc-options:
+    -Wall
+    -funbox-strict-fields
+
+  build-depends:
+    base ^>=4.19.2.0,
+    bytestring,
+    containers,
+    mtl,
+    prettyprinter,
+    prettyprinter-ansi-terminal,
+    text,
+    transformers,
+    utf8-string,
+    vector,
 
 test-suite fnotation-test
-    type:               exitcode-stdio-1.0
-    main-is:            Main.hs
-    hs-source-dirs:     test
-    default-language:   GHC2021
-    default-extensions: OverloadedStrings Strict StrictData
-    ghc-options:        -Wall -funbox-strict-fields
-    build-depends:
-        base ^>=4.19.2.0,
-        bytestring,
-        containers,
-        filepath,
-        fnotation,
-        prettyprinter,
-        tasty,
-        tasty-golden,
-        tasty-smallcheck,
-        vector,
-        text
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs: test
+  default-language: GHC2021
+  default-extensions:
+    OverloadedStrings
+    Strict
+    StrictData
+
+  ghc-options:
+    -Wall
+    -funbox-strict-fields
+
+  build-depends:
+    base ^>=4.19.2.0,
+    bytestring,
+    containers,
+    filepath,
+    fnotation,
+    prettyprinter,
+    tasty,
+    tasty-golden,
+    tasty-smallcheck,
+    text,
+    vector,

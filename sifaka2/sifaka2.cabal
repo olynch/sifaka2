@@ -1,71 +1,87 @@
-cabal-version:   3.0
-name:            sifaka2
-version:         0.1.0.0
-license:         BSD-3-Clause
-license-file:    LICENSE
-maintainer:      root@owenlynch.org
-author:          Owen Lynch
-category:        Language
-build-type:      Simple
+cabal-version: 3.0
+name: sifaka2
+version: 0.1.0.0
+license: BSD-3-Clause
+license-file: LICENSE
+maintainer: root@owenlynch.org
+author: Owen Lynch
+category: Language
+build-type: Simple
 extra-doc-files: CHANGELOG.md
 
-
 library
-    exposed-modules:
-        Sifaka
-        Sifaka.CodeGen
-        Sifaka.Qbe
-        Sifaka.Common
-        Sifaka.Elab
-        Sifaka.Eval
-        Sifaka.Syntax
-        Sifaka.Value
+  exposed-modules:
+    Sifaka
+    Sifaka.CodeGen
+    Sifaka.Common
+    Sifaka.Elab
+    Sifaka.Eval
+    Sifaka.Qbe
+    Sifaka.Syntax
+    Sifaka.Value
 
-    hs-source-dirs:     src
-    default-language:   GHC2021
-    default-extensions:
-        Strict StrictData OverloadedStrings DerivingVia ImplicitParams
-        LambdaCase FunctionalDependencies CPP
+  hs-source-dirs: src
+  default-language: GHC2021
+  default-extensions:
+    CPP
+    DerivingVia
+    FunctionalDependencies
+    ImplicitParams
+    LambdaCase
+    OverloadedStrings
+    Strict
+    StrictData
 
-    ghc-options:      -Wall
-    build-depends:
-                  base ^>=4.19.2.0,
-                  bytestring >= 0.12.1.0,
-                  containers,
-                  fnotation ^>=0.2.0.0,
-                  mtl,
-                  prettyprinter,
-                  process >= 1.6.25.0,
-                  text,
-                  transformers,
-                  vector,
-                  temporary
+  ghc-options: -Wall
+  build-depends:
+    base ^>=4.19.2.0,
+    bytestring >=0.12.1.0,
+    containers,
+    fnotation ^>=0.2.0.0,
+    mtl,
+    prettyprinter,
+    process >=1.6.25.0,
+    temporary,
+    text,
+    transformers,
+    vector,
 
 executable sifaka2
-    main-is:          Main.hs
-    hs-source-dirs:   app
-    default-language: GHC2021
-    ghc-options:      -Wall -prof "-with-rtsopts=-xc"
-    default-extensions:
-        Strict StrictData OverloadedStrings DerivingVia ImplicitParams
-        LambdaCase FunctionalDependencies CPP
-    build-depends:
-                  base ^>=4.19.2.0,
-                  bytestring >= 0.12.1.0,
-                  optparse-applicative >= 0.19.0.0,
-                  fnotation,
-                  text,
-                  containers,
-                  sifaka2,
-                  process
+  main-is: Main.hs
+  hs-source-dirs: app
+  default-language: GHC2021
+  default-extensions:
+    CPP
+    DerivingVia
+    FunctionalDependencies
+    ImplicitParams
+    LambdaCase
+    OverloadedStrings
+    Strict
+    StrictData
+
+  ghc-options:
+    -Wall
+    -prof
+    -with-rtsopts=-xc
+
+  build-depends:
+    base ^>=4.19.2.0,
+    bytestring >=0.12.1.0,
+    containers,
+    fnotation,
+    optparse-applicative >=0.19.0.0,
+    process,
+    sifaka2,
+    text,
 
 test-suite sifaka2-test
-    type:             exitcode-stdio-1.0
-    main-is:          Main.hs
-    hs-source-dirs:   test
-    default-language: GHC2021
-    ghc-options:      -Wall
-    build-depends:
-                  base ^>=4.19.2.0,
-                  bytestring >= 0.12.1.0,
-                  sifaka2
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs: test
+  default-language: GHC2021
+  ghc-options: -Wall
+  build-depends:
+    base ^>=4.19.2.0,
+    bytestring >=0.12.1.0,
+    sifaka2,
