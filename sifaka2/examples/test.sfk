@@ -1,1 +1,4 @@
 def foo (x : Double) (y : Double) : Double = x + y * 2
+
+eval foo 2 3
+eval foo 4 5

@@ -38,7 +38,8 @@ library
                   process >= 1.6.25.0,
                   text,
                   transformers,
-                  vector
+                  vector,
+                  temporary
 
 executable sifaka2
     main-is:          Main.hs
@@ -55,7 +56,8 @@ executable sifaka2
                   fnotation,
                   text,
                   containers,
-                  sifaka2
+                  sifaka2,
+                  process
 
 test-suite sifaka2-test
     type:             exitcode-stdio-1.0

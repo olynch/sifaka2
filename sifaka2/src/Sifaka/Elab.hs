@@ -1,4 +1,4 @@
-module Sifaka.Elab (elabTop) where
+module Sifaka.Elab (elabModule) where
 
 import Control.Applicative (empty)
 import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
@@ -12,7 +12,7 @@ import Sifaka.Value qualified as V
 import Sifaka.Syntax qualified as S
 import Sifaka.Common
 
-import FNotation.FNtn
+import FNotation.FNtn as FNtn
 import FNotation.Span
 import FNotation.Prelude (ADoc)
 import FNotation.Diagnostic (Reporter(..), Diagnostic(..), FileId(..), Loc(..), Marker(..), Severity(..), Annot(..))
@@ -29,35 +29,35 @@ data Ctx = Ctx {
   ctxLocals :: Locals
   }
 
-newtype TopCtx = TopCtx {
-  topCtxDecls :: Bwd (Name, S.TopDecl)
-}
+bind :: Ctx -> Name -> V.Ty -> Ctx
+bind (Ctx n l) name ty = Ctx (n + 1) (LBind l name ty)
 
-intro :: Ctx -> Name -> V.Ty -> Ctx
-intro (Ctx n l) name ty = Ctx (n + 1) (LBind l name ty)
+define :: Ctx -> Name -> V.Tm -> V.Ty -> Ctx
+define (Ctx n l) name v ty = Ctx (n + 1) (LDef l name v ty)
 
 type CtxArg = (?ctx :: Ctx)
-type TopCtxArg = (?topCtx :: TopCtx)
+type ModuleArg = (?module :: S.Module)
 type ReporterArg = (?reporter :: Reporter)
 type FileIdArg = (?fileId :: FileId)
 type MetaEnvArg = (?metaEnv :: IORef MetaEnv)
 
-type Elab a = FileIdArg => ReporterArg => MetaEnvArg => TopCtxArg => CtxArg => a
+type Elab a = FileIdArg => ReporterArg => MetaEnvArg => ModuleArg => CtxArg => a
 
-data SVTy = SVTy S.Ty ~V.Ty
+-- | Types and terms used during elaboration have a strict syntactic component
+-- | and a lazy semantic component
 
-data SVTm = SVTm S.Tm ~V.Tm
+data Ty = Ty {
+  tyStx :: S.Ty,
+  tyVal :: ~V.Ty
+}
 
-binop :: S.BinOp -> SVTm -> SVTm -> SVTm
-binop op (SVTm s1 _) (SVTm s2 _) = (SVTm (S.BinOp op s1 s2) V.Opaque)
+data Tm = Tm {
+  tmStx :: S.Tm,
+  tmVal :: ~V.Tm
+  }
 
--- Options for handling failure:
---
--- 1. Exceptions
--- 2. MaybeT IO
--- 3. No failures, just make more metavariables
---
--- 3 is the option suggested by Andras and Jon.
+binop :: S.BinOp -> Tm -> Tm -> Tm
+binop op (Tm s1 _) (Tm s2 _) = (Tm (S.BinOp op s1 s2) V.Opaque)
 
 report :: ReporterArg => Diagnostic -> IO ()
 report d = do
@@ -85,32 +85,45 @@ lookup name = pure $ go (ctxLocals ?ctx) 0
       | name == name' = Just (i, (V.Rigid (bwdToFwd i) V.SId), ty)
       | otherwise     = go locals (i + 1)
 
+quoteTy :: Elab (V.Ty -> S.Ty)
+quoteTy V.Double = S.Double
+quoteTy _ = impossible
+
+evalTy :: Elab (S.Ty -> V.Ty)
+evalTy S.Double = V.Double
+evalTy _ = impossible
+
+eval :: Elab (S.Tm -> V.Tm)
+eval _ = V.Opaque
 
 freshMeta :: Elab (IO MetaVar)
 freshMeta = atomicModifyIORef ?metaEnv (\(MetaEnv i) -> (MetaEnv (i+1), MetaVar i))
 
-checkTyMeta :: Elab (IO SVTy)
+-- Create a new type in an inferring context
+checkTyMeta :: Elab (IO Ty)
 checkTyMeta = do
   mv <- freshMeta
   -- NOTE: this is incorrect; we should actually pull out the spine from the
   -- curent environment
-  pure $ SVTy (S.TMeta mv S.MSId) (V.TFlex mv V.SId)
+  pure $ Ty (S.TMeta mv S.MSId) (V.TFlex mv V.SId)
 
-checkMeta :: Elab (IO SVTm)
+-- Create a new meta in a checking context
+checkMeta :: Elab (IO Tm)
 checkMeta = do
   mv <- freshMeta
   -- NOTE: this is incorrect; we should actually pull out the spine from the
   -- curent environment
-  pure $ SVTm (S.Meta mv S.MSId) (V.Flex mv V.SId)
+  pure $ Tm (S.Meta mv S.MSId) (V.Flex mv V.SId)
 
-inferMeta :: Elab (IO (SVTm, V.Ty))
+-- Create a new meta in an inferring context
+inferMeta :: Elab (IO (Tm, V.Ty))
 inferMeta = do
   tmM <- freshMeta
   tyM <- freshMeta
-  pure $ (SVTm (S.Meta tmM S.MSId) (V.Flex tmM V.SId), V.TFlex tyM V.SId)
+  pure $ (Tm (S.Meta tmM S.MSId) (V.Flex tmM V.SId), V.TFlex tyM V.SId)
 
-checkTy :: Elab (FNtn -> IO SVTy)
-checkTy (L _ (Keyword "Double")) = pure $ SVTy S.Double V.Double
+checkTy :: Elab (FNtn -> IO Ty)
+checkTy (L _ (Keyword "Double")) = pure $ Ty S.Double V.Double
 checkTy (L s _) = do
   error s "unexpected notation for type"
   checkTyMeta
@@ -119,9 +132,9 @@ unifyTy :: Elab (V.Ty -> V.Ty -> IO Bool)
 unifyTy V.Double V.Double = pure True
 unifyTy _ _ = pure False
 
-check :: Elab (V.Ty -> FNtn -> IO SVTm)
+check :: Elab (V.Ty -> FNtn -> IO Tm)
 check ty (L s (Int i)) = case ty of
-  V.Double -> pure (SVTm (S.Lit (S.LitDouble (fromIntegral i))) V.Opaque)
+  V.Double -> pure (Tm (S.Lit (S.LitDouble (fromIntegral i))) V.Opaque)
   _ -> do
     error s "can only check integer against double for now"
     checkMeta
@@ -142,14 +155,54 @@ ops = Map.fromList [
   ("/", S.Div)
   ]
 
-infer :: Elab (FNtn -> IO (SVTm, V.Ty))
+gatherApp1s :: FNtn -> [FNtn] -> (FNtn, [FNtn])
+gatherApp1s (L _ (App1 f x)) args = gatherApp1s f (x:args)
+gatherApp1s n args = (n, args)
+
+checkArgs :: Elab ([FNtn] -> [(Name, S.Ty)] -> [S.Tm] -> IO (Ctx, [S.Tm]))
+checkArgs [] [] args = pure $ (?ctx, reverse args)
+checkArgs (argN:argNs) ((name, argTy):argTys) args = do
+  let ty = evalTy argTy
+  arg <- check ty argN
+  let ?ctx = define ?ctx name (tmVal arg) ty in
+    checkArgs argNs argTys (tmStx arg:args)
+checkArgs _ _ _ = impossible
+
+lookupFunc :: Elab (Span -> Name -> MaybeT IO (S.Id S.Func, S.Func))
+lookupFunc s name = go 0 (S.moduleFuncs ?module)
+  where
+    go :: BwdIdx -> Bwd S.Func -> MaybeT IO (S.Id S.Func, S.Func)
+    go i BwdNil = do
+      liftIO $ error s $ "no such function" <+> pretty name
+      empty
+    go i (Snoc funcs f@(S.Func name' _ _ _))
+      | name == name' = pure (S.Id i name, f)
+      | otherwise = go (i+1) funcs
+
+orInferMeta :: Elab (MaybeT IO (Tm, V.Ty) -> IO (Tm, V.Ty))
+orInferMeta action = runMaybeT action >>= \case
+  Just res -> pure res
+  Nothing -> inferMeta
+
+infer :: Elab (FNtn -> IO (Tm, V.Ty))
 infer (L s (Ident n)) = do
   let name = Name n
   lookup name >>= \case
-    Just (i, tm, ty) -> pure $ (SVTm (S.LocalVar (S.Id i name)) tm, ty)
+    Just (i, tm, ty) -> pure $ (Tm (S.LocalVar (S.Id i name)) tm, ty)
     Nothing -> do
       error s ("no such variable" <+> pretty name)
       inferMeta
+infer n@(L _ (App1 _ _)) = do
+  let (fN, argNs) = gatherApp1s n []
+  orInferMeta $ do
+    name <- asName fN
+    (fid, fdef) <- lookupFunc (FNtn.span fN) name
+    (ctx, args) <- liftIO $ checkArgs argNs (S.funcArgs fdef) []
+    let ?ctx = ctx in
+      let ty = evalTy (S.funcRetTy fdef)
+          val = eval (S.funcBody fdef)
+      in pure (Tm (S.TopApp fid args) val, ty)
+
 infer (L s (App2 (L _ (Keyword opN)) n1 n2)) = do
   t1 <- check V.Double n1
   t2 <- check V.Double n2
@@ -158,7 +211,6 @@ infer (L s (App2 (L _ (Keyword opN)) n1 n2)) = do
     Nothing -> do
       error s $ "unrecognized operator" <+> pretty opN
       inferMeta
-
 infer (L s (Int _)) = do
   error s "integer literal only allowed in checking position"
   inferMeta
@@ -199,39 +251,43 @@ elabArgs [] args = pure (reverse args, ?ctx)
 elabArgs (argN : rest) args = do
   (nameN, tyN) <- asBinding argN
   name <- asName nameN
-  (SVTy tyS tyV) <- liftIO $ checkTy tyN
-  let ?ctx = intro ?ctx name tyV in
+  (Ty tyS tyV) <- liftIO $ checkTy tyN
+  let ?ctx = bind ?ctx name tyV in
     elabArgs rest ((name, tyS):args)
 
-
-topDecl :: Elab (FNtnTop -> IO (Maybe (Name, S.TopDecl)))
+topDecl :: Elab (FNtnTop -> IO (Maybe S.TopDecl))
 topDecl (FNtnTop "def" _ n) = runMaybeT $ do
   (pat, bodyN) <- asDefinition n
   (app, retTyN) <- asBinding pat
   (name, argNs) <- asApplication app
   (args, ctx) <- elabArgs argNs []
   let ?ctx = ctx in do
-    (SVTy retTyS retTyV) <- liftIO $ checkTy retTyN
-    (SVTm bodyS _) <- liftIO $ check retTyV bodyN
-    pure (name, S.TDef (S.Def args retTyS bodyS))
+    (Ty retTyS retTyV) <- liftIO $ checkTy retTyN
+    (Tm bodyS _) <- liftIO $ check retTyV bodyN
+    pure $ S.TFunc (S.Func name args retTyS bodyS)
+topDecl (FNtnTop "eval" _ n) = do
+  (tm, ty) <- infer n
+  pure $ Just $ S.TEval $ S.Eval (tmStx tm) (quoteTy ty)
+
 topDecl (FNtnTop name s _) = do
   error s $ "unexpected toplevel \"" <> pretty name <> "\""
   pure Nothing
 
-topDecls :: Elab ([FNtnTop] -> IO TopCtx)
-topDecls [] = pure $ ?topCtx
-topDecls (tn:rest) = topDecl tn >>= \case
-  Just d -> let ?topCtx = TopCtx (Snoc (topCtxDecls ?topCtx) d) in topDecls rest
-  Nothing -> pure ?topCtx
+doModule :: Elab ([FNtnTop] -> IO S.Module)
+doModule [] = pure ?module
+doModule (tn:rest) = topDecl tn >>= \case
+  Just (S.TFunc f) ->
+    let ?module = S.addFunc ?module f in doModule rest
+  Just (S.TEval tm) ->
+    let ?module = S.addEval ?module tm in doModule rest
+  Nothing -> doModule rest
 
-
-elabTop :: Reporter -> FileId -> [FNtnTop] -> IO [(Name, S.TopDecl)]
-elabTop reporter fileId tns = do
+elabModule :: Reporter -> FileId -> [FNtnTop] -> IO S.Module
+elabModule reporter fileId tns = do
   metaIORef <- newIORef (MetaEnv 0)
   let ?reporter = reporter
       ?fileId = fileId
       ?metaEnv = metaIORef
-      ?topCtx = TopCtx BwdNil
+      ?module = S.emptyModule
       ?ctx = Ctx 0 LNil
-  (TopCtx decls) <- topDecls tns
-  pure $ bwdToList decls
+  doModule tns

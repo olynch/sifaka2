@@ -66,6 +66,7 @@ newtype BwdIdx = BwdIdx Word
     deriving (Eq, Ord, Show, Num, Enum, Bits, Integral, Real) via Word
 
 data Bwd a = BwdNil | Snoc (Bwd a) a
+  deriving (Functor)
 
 instance ElemAt (Bwd a) BwdIdx a where
     elemAt BwdNil _ = impossible

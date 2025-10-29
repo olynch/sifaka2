@@ -8,6 +8,8 @@ import Sifaka.Common
 import System.Process
 import Debug.Trace (trace)
 import System.IO
+import System.IO.Temp
+import Data.String (IsString(..))
 
 class ToText a where
   txt :: a -> Builder
@@ -24,6 +26,9 @@ instance ToText QbeName where
   txt (StaticName s) = encodeUtf8Builder s
   txt (FreshName i) = "_" <> intDec i
 
+instance IsString QbeName where
+  fromString s = StaticName (fromString s)
+
 newtype TypeName = TypeName QbeName
 
 instance ToText TypeName where
@@ -34,12 +39,18 @@ newtype GlobalName = GlobalName QbeName
 instance ToText GlobalName where
   txt (GlobalName n) = "$" <> txt n
 
+instance IsString GlobalName where
+  fromString s = GlobalName (fromString s)
+
 newtype LocalName = LocalName QbeName
 
 instance ToText LocalName where
   txt (LocalName n) = "%" <> txt n
 
 newtype LabelName = LabelName QbeName
+
+instance IsString LabelName where
+  fromString s = LabelName (fromString s)
 
 instance ToText LabelName where
   txt (LabelName n) = "@" <> txt n
@@ -213,7 +224,7 @@ instance ToText Inst where
   txt (Inst0 i) = txt i
   txt (Call ret f args) = doRet ret <> "call" <+> txt f <+> "(" <> commaSep (doArg <$> args) <> ")"
     where
-      doRet (Just (name, ty)) = txt name <+> "=" <+> txt ty <> " "
+      doRet (Just (name, ty)) = txt name <+> "=" <> txt ty <> " "
       doRet Nothing = ""
       doArg (ty, v) = txt ty <+> txt v
 
@@ -304,16 +315,19 @@ emitIR m irPath = do
   withFile irPath WriteMode $ \h -> hPutBuilder h (txt m)
 
 compile :: Module -> FilePath -> IO ()
-compile m asmPath = do
-  let qbeProc = (proc "qbe" ["-o", asmPath]) {std_in = CreatePipe}
-  withCreateProcess
-    qbeProc
-    ( \maybeQbeIn _ _ qbeHandle -> do
-        (Just qbeIn) <- pure maybeQbeIn
-        hPutBuilder qbeIn (txt m)
-        hClose qbeIn
-        _ <- waitForProcess qbeHandle
-        pure () )
+compile m out = do
+  withSystemTempFile "out.s" $ \asmPath _ -> do
+    let qbeProc = (proc "qbe" ["-o", asmPath]) {std_in = CreatePipe}
+    withCreateProcess
+      qbeProc
+      ( \maybeQbeIn _ _ qbeHandle -> do
+          (Just qbeIn) <- pure maybeQbeIn
+          hPutBuilder qbeIn (txt m)
+          hClose qbeIn
+          _ <- waitForProcess qbeHandle
+          pure () )
+    callProcess "cc" [asmPath, "runtime/runtime.c", "-o", out]
+
 
 
 assemble :: Module -> FilePath -> IO ()

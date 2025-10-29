@@ -18,13 +18,26 @@ runBlockM :: BlockM a -> (a, [Inst])
 runBlockM action =
   let (x, BS _ is) = runState (unBlockM action) (BS 0 BwdNil) in (x, bwdToList is)
 
+emit :: Inst -> BlockM ()
+emit i = modify $ \(BS fresh is) -> BS fresh (Snoc is i)
+
 emit0 :: Inst0 -> BlockM ()
-emit0 i = modify (\bs -> bs{bsInstructions = Snoc (bsInstructions bs) (Inst0 i)})
+emit0 i = emit (Inst0 i)
 
 emit1 :: Inst1 -> BaseTy -> BlockM Val
 emit1 i ty = do
   name <- freshLocal
-  state $ \(BS fresh is) -> (VIdent name, BS fresh (Snoc is (Inst1 name ty i)))
+  emit $ Inst1 name ty i
+  pure $ VIdent name
+
+call1 :: GlobalName -> AbiTy -> [(AbiTy, Val)] -> BlockM Val
+call1 fname retTy args = do
+  name <- freshLocal
+  emit $ Call (Just (name, retTy)) (VConst (CGlobal fname)) args
+  pure $ VIdent name
+
+call0 :: GlobalName -> [(AbiTy, Val)] -> BlockM ()
+call0 fname args = emit $ Call Nothing (VConst (CGlobal fname)) args
 
 type Env = Bwd Val
 
@@ -33,8 +46,8 @@ freshLocal = state $
   \(BS fresh is) -> (LocalName (FreshName fresh), (BS (fresh + 1) is))
 
 compileLit :: S.Literal -> Const
-compileLit (S.LitInt i) = CNum i
-compileLit (S.LitFin i) = CNum i
+compileLit (S.LitNat i) = CNum $ fromIntegral i
+compileLit (S.LitFin i) = CNum $ fromIntegral i
 compileLit (S.LitDouble x) = CFloat64 x
 
 opToInst :: S.BinOp -> Val -> Val -> Inst1
@@ -55,6 +68,12 @@ doTm tm = case tm of
     v <- doTm tm1
     let ?env = Snoc ?env v in doTm (S.Block bs ret)
   S.Block [] ret -> doTm ret
+  S.TopApp (S.Id _ (Name f)) argStxs -> do
+    argVals <- mapM doTm argStxs
+    call1
+      (GlobalName (StaticName f))
+      (ABase Float64)
+      (zip (repeat $ ABase Float64) argVals)
   _ -> impossible
 
 doTy :: S.Ty -> BaseTy
@@ -71,8 +90,8 @@ doArgs args = go args []
       let ?env = Snoc ?env (VIdent name) in
         go rest (Param (ABase (doTy ty)) name : params)
 
-doDef :: Name -> S.Def -> FuncDef
-doDef (Name name) (S.Def args retTy body) =
+doFunc :: S.Func -> FuncDef
+doFunc (S.Func (Name name) args retTy body) =
   FuncDef
     [Export]
     (Just (ABase (doTy retTy)))
@@ -88,14 +107,39 @@ doDef (Name name) (S.Def args retTy body) =
     startBlock =
       Block (LabelName (StaticName "start")) [] instructions (Ret $ Just ret)
 
-doDecls :: [(Name, S.TopDecl)] -> Module
-doDecls decls = go (Module [] [] []) decls
-  where
-    go (Module tys datas funcs) [] =
-      Module (reverse tys) (reverse datas) (reverse funcs)
-    go m ((name, S.TDef d) : rest) = go m' rest
-      where m' = m { moduleFuncs = doDef name d : (moduleFuncs m) }
+doEvals :: [S.Eval] -> BlockM ()
+doEvals [] = pure ()
+doEvals (S.Eval tm _ : rest) = do
+  ret <- let ?env = BwdNil in doTm tm
+  call0 "printd" [(ABase Float64, ret)]
+  doEvals rest
 
-genTop :: [(Name, S.TopDecl)] -> FilePath -> IO ()
-genTop decls out = assemble mod out
-  where mod = doDecls decls
+doMain :: Bwd S.Eval -> FuncDef
+doMain evals =
+  FuncDef
+    [Export]
+    (Just (ABase Word32))
+    (GlobalName (StaticName "main"))
+    []
+    [startBlock]
+  where
+    (_, instructions) = runBlockM $ doEvals $ bwdToList evals
+    startBlock = Block
+      (LabelName (StaticName "start"))
+      []
+      instructions
+      (Ret $ Just (VConst (CNum 0)))
+
+start :: FuncDef
+start = FuncDef [Export] Nothing "_start" [] [startBlock]
+  where
+    (_, instructions) = runBlockM $ do
+      ret <- call1 "main" (ABase Word32) []
+      call0 "exit" [(ABase Word32, ret)]
+    startBlock = Block "start" [] instructions Hlt
+
+genModule :: S.Module -> Module
+genModule m = Module
+  []
+  []
+  (bwdToList $ Snoc (fmap doFunc (S.moduleFuncs m)) (doMain (S.moduleEvals m)))

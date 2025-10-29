@@ -1,0 +1,19 @@
+# Sifaka2
+
+Sifaka2 tries to realize the vision of [dex](github.com/google-research/dex-lang) in a unified language in the style of 1ML.
+
+This is achieved by a dependent language with first-class support for the phase distinctions that are associated with *typechecking* and *code generation*.
+
+The phase distinction for typechecking concerns the abstract interpretation that is performed during elaboration. This is well-modeled by the open modality for a proposition.
+
+The phase distinction for code generation tells us for which arguments is a function partially-evaluated with respect to during compilation.
+
+## Plan
+
+The needs of elaboration and code generation are intertwined with one another. That is, the core language needs to be designed in such a way as to support code generation.
+
+We are going to do this incrementally; as we add features to the elaborator, we will also add more features to the code generator. At a certain point, we may need an intermediate step between them as well.
+
+### Step 1
+
+Add support for the toplevel operations `def` and `eval`.
