@@ -1,8 +1,8 @@
 module Sifaka.Eval where
 
 import Sifaka.Common
-import Sifaka.Value qualified as V
 import Sifaka.Syntax qualified as S
+import Sifaka.Value qualified as V
 
 type Env = Bwd V.Tm
 

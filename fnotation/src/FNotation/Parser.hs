@@ -17,11 +17,11 @@ import FNotation.FNtn (FNtn (..), FNtn0 (..), FNtnTop (..))
 import FNotation.FNtn qualified as FNtn
 import FNotation.Parser.ParseState (ParseState (ParseState))
 import FNotation.Parser.ParseState qualified as PS
+import FNotation.Prelude
 import FNotation.Span (Span (Span))
 import FNotation.Span qualified as Span
 import FNotation.Token (Tag (..), Token)
 import FNotation.Token qualified as Token
-import FNotation.Prelude
 import Prettyprinter
 import Prettyprinter.Render.Terminal (AnsiStyle)
 import Prelude hiding (error)
@@ -63,7 +63,7 @@ errorHere :: Doc AnsiStyle -> Parser ()
 errorHere msg = do
   tokens <- get <&> PS.tokens
   case tokens of
-    (token:_) -> errorFromSpan_ (Token.span token) msg
+    (token : _) -> errorFromSpan_ (Token.span token) msg
     [] -> do
       endPos <- get <&> PS.endPos
       errorFromSpan_ (Span endPos endPos) msg
@@ -264,25 +264,30 @@ expr = do
 tops :: Parser [FNtnTop]
 tops = go []
   where
-    go acc = nextTopDecl False >>= \case
-      Just (name, m) -> do
-        n <- expr
-        s <- spanStartingAt m
-        go (FNtnTop name s n : acc)
-      Nothing -> pure $ reverse acc
+    go acc =
+      nextTopDecl False >>= \case
+        Just (name, m) -> do
+          n <- expr
+          s <- spanStartingAt m
+          go (FNtnTop name s n : acc)
+        Nothing -> pure $ reverse acc
     nextTopDecl :: Bool -> Parser (Maybe (Text, Int))
-    nextTopDecl skip = cur >>= \case
-      TOPDECL -> do
-        m <- open
-        advance
-        name <- decodeUtf8 <$> slice m
-        pure $ Just (name, m)
-      EOF -> pure Nothing
-      _ -> if skip then advance >> nextTopDecl True else do
-        m <- open
-        advance
-        error_ m $ "expected a toplevel declaration"
-        nextTopDecl True
+    nextTopDecl skip =
+      cur >>= \case
+        TOPDECL -> do
+          m <- open
+          advance
+          name <- decodeUtf8 <$> slice m
+          pure $ Just (name, m)
+        EOF -> pure Nothing
+        _ ->
+          if skip
+            then advance >> nextTopDecl True
+            else do
+              m <- open
+              advance
+              error_ m $ "expected a toplevel declaration"
+              nextTopDecl True
 
 runParser :: Parser a -> Reporter -> FNotationConfig -> FileId -> [Token] -> ByteString -> IO a
 runParser action r config fi ts bs = evalStateT (unParser action) s

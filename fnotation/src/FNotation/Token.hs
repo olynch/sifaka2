@@ -1,9 +1,9 @@
 module FNotation.Token where
 
+import FNotation.Prelude
 import FNotation.Span (Span)
 import FNotation.Span qualified as Span
 import Prettyprinter
-import FNotation.Prelude
 import Prelude hiding (span)
 
 data Tag

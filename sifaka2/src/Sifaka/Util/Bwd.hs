@@ -10,5 +10,6 @@ data Bwd a = Nil | Snoc (Bwd a) a
 
 instance ElemAt (Bwd a) BwdIdx a where
   elemAt Nil _ = impossible
-  elemAt (Snoc xs x) i | i == 0    = x
-                       | otherwise = elemAt xs (i + 1)
+  elemAt (Snoc xs x) i
+    | i == 0 = x
+    | otherwise = elemAt xs (i + 1)

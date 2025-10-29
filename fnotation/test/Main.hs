@@ -2,34 +2,35 @@ module Main (main) where
 
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
+import Data.IORef
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text.Encoding qualified as TE
+import Data.Vector qualified as V
+import FNotation.Config (Assoc (..), FNotationConfig (FNotationConfig), Prec (Prec))
 import FNotation.Diagnostic
-    ( FileId,
-      Reporter,
-      pprDiagnostic,
-      defaultStyle,
-      ioRefReporter,
-      insertFile,
-      emptyFiles,
-      newFile )
+  ( FileId,
+    Reporter,
+    defaultStyle,
+    emptyFiles,
+    insertFile,
+    ioRefReporter,
+    newFile,
+    pprDiagnostic,
+  )
 import FNotation.Lexer (lex)
-import FNotation.Config (Assoc (..), Prec (Prec), FNotationConfig (FNotationConfig))
 import FNotation.Parser (parse)
+import FNotation.Prelude
 import FNotation.Token (tokensPretty)
 import FNotation.Util (insertionPoint)
-import FNotation.Prelude
 import Prettyprinter
+import Prettyprinter.Render.Text (renderStrict)
 import System.FilePath (replaceExtension, takeBaseName)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.Golden (findByExtension, goldenVsString)
 import Test.Tasty.SmallCheck qualified as SC
 import Prelude hiding (lex)
-import Data.IORef
-import Prettyprinter.Render.Text (renderStrict)
-import Data.Text.Encoding qualified as TE
-import Data.Vector qualified as V
-import Data.List qualified as List
 
 main :: IO ()
 main = do
@@ -55,7 +56,7 @@ runWithReporter p f = do
   let reporter = ioRefReporter ref
   result <- f reporter contents fileId
   diagnostics <- readIORef ref
-  let doc = vsep $ reverse $ (result:) $ pprDiagnostic defaultStyle files <$> diagnostics
+  let doc = vsep $ reverse $ (result :) $ pprDiagnostic defaultStyle files <$> diagnostics
   return $ LBS.fromStrict $ TE.encodeUtf8 $ renderStrict $ layoutPretty defaultLayoutOptions doc
 
 runLex :: FilePath -> IO LBS.ByteString
@@ -89,8 +90,7 @@ scTests :: TestTree
 scTests =
   testGroup
     "smallcheck tests"
-    [
-      SC.testProperty "insertionPoint xs x <= length xs" $
+    [ SC.testProperty "insertionPoint xs x <= length xs" $
         \xs' x ->
           let xs = V.fromList xs'
            in insertionPoint xs (x :: Int) <= length xs,

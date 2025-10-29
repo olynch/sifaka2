@@ -46,8 +46,8 @@ instance Pretty FNtn0 where
 instance Pretty FNtn where
   pretty (L _ n0) = pretty n0
 
-data FNtnTop = FNtnTop {
-  fntnTopName :: Text,
-  fntnTopSpan :: Span,
-  fntnTopBody :: FNtn
-}
+data FNtnTop = FNtnTop
+  { fntnTopName :: Text,
+    fntnTopSpan :: Span,
+    fntnTopBody :: FNtn
+  }

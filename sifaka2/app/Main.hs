@@ -2,30 +2,45 @@
 
 module Main where
 
-import Prelude hiding (lex)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder (hPutBuilder)
-import System.IO (stdout)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as TE
 import FNotation
 import FNotation.Diagnostic qualified as FD
-import Options.Applicative (
-  argument, execParser, fullDesc, header, helper, info, metavar, progDesc, str, (<**>), help, long, short, flag)
+import Options.Applicative
+  ( argument,
+    execParser,
+    flag,
+    fullDesc,
+    header,
+    help,
+    helper,
+    info,
+    long,
+    metavar,
+    progDesc,
+    short,
+    str,
+    (<**>),
+  )
 import Options.Applicative qualified as Opts
-import Sifaka.Elab
 import Sifaka.CodeGen
+import Sifaka.Elab
 import Sifaka.Qbe qualified as Qbe
+import System.IO (stdout)
 import System.Process
+import Prelude hiding (lex)
 
 data Args = Args {argsSourceName :: FilePath, argsOut :: FilePath, argsRun :: Bool}
 
 argsParser :: Opts.Parser Args
-argsParser = Args <$>
-  argument str (metavar "SOURCE") <*>
-  argument str (metavar "OUT") <*>
-  flag False True (long "run" <> short 'r' <> help "run the compiled program")
+argsParser =
+  Args
+    <$> argument str (metavar "SOURCE")
+    <*> argument str (metavar "OUT")
+    <*> flag False True (long "run" <> short 'r' <> help "run the compiled program")
 
 opts :: Opts.ParserInfo Args
 opts =
@@ -41,12 +56,13 @@ fnotationConfig =
   FNotationConfig
     { keywords = Set.fromList ["+", "-", "*", "/", "=", ":", "Double"],
       topdecls = Set.fromList ["def", "eval"],
-      precedences = Map.fromList [
-        ("=", Prec 10 NonA),
-        (":", Prec 20 NonA),
-        ("+", Prec 50 LeftA),
-        ("*", Prec 60 LeftA)
-      ]
+      precedences =
+        Map.fromList
+          [ ("=", Prec 10 NonA),
+            (":", Prec 20 NonA),
+            ("+", Prec 50 LeftA),
+            ("*", Prec 60 LeftA)
+          ]
     }
 
 main :: IO ()
@@ -60,8 +76,8 @@ main = do
   let reporter = FD.stderrReporter files'
   tokens <- lex reporter fnotationConfig source
   tns <- parseTop reporter fnotationConfig fileId tokens source
-  mod <- elabModule reporter fileId tns
-  let irMod = genModule mod
+  coreMod <- elabModule reporter fileId tns
+  let irMod = genModule coreMod
   Qbe.compile irMod (argsOut args)
   if (argsRun args)
     then callProcess (argsOut args) []

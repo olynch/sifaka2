@@ -1,21 +1,19 @@
 module Sifaka.Elab (elabModule) where
 
 import Control.Applicative (empty)
-import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
 import Control.Monad.IO.Class (liftIO)
-import Prelude hiding (error, lookup)
-import Prettyprinter
+import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
 import Data.IORef
 import Data.Map qualified as Map
-
-import Sifaka.Value qualified as V
-import Sifaka.Syntax qualified as S
-import Sifaka.Common
-
+import FNotation.Diagnostic (Annot (..), Diagnostic (..), FileId (..), Loc (..), Marker (..), Reporter (..), Severity (..))
 import FNotation.FNtn as FNtn
-import FNotation.Span
 import FNotation.Prelude (ADoc)
-import FNotation.Diagnostic (Reporter(..), Diagnostic(..), FileId(..), Loc(..), Marker(..), Severity(..), Annot(..))
+import FNotation.Span
+import Prettyprinter
+import Sifaka.Common
+import Sifaka.Syntax qualified as S
+import Sifaka.Value qualified as V
+import Prelude hiding (error, lookup)
 
 data Locals
   = LNil
@@ -24,9 +22,9 @@ data Locals
 
 data MetaEnv = MetaEnv Int
 
-data Ctx = Ctx {
-  ctxLen :: Word,
-  ctxLocals :: Locals
+data Ctx = Ctx
+  { ctxLen :: Word,
+    ctxLocals :: Locals
   }
 
 bind :: Ctx -> Name -> V.Ty -> Ctx
@@ -36,42 +34,45 @@ define :: Ctx -> Name -> V.Tm -> V.Ty -> Ctx
 define (Ctx n l) name v ty = Ctx (n + 1) (LDef l name v ty)
 
 type CtxArg = (?ctx :: Ctx)
+
 type ModuleArg = (?module :: S.Module)
+
 type ReporterArg = (?reporter :: Reporter)
+
 type FileIdArg = (?fileId :: FileId)
+
 type MetaEnvArg = (?metaEnv :: IORef MetaEnv)
 
-type Elab a = FileIdArg => ReporterArg => MetaEnvArg => ModuleArg => CtxArg => a
+type Elab a = (FileIdArg) => (ReporterArg) => (MetaEnvArg) => (ModuleArg) => (CtxArg) => a
 
 -- | Types and terms used during elaboration have a strict syntactic component
 -- | and a lazy semantic component
+data Ty = Ty
+  { tyStx :: S.Ty,
+    tyVal :: ~V.Ty
+  }
 
-data Ty = Ty {
-  tyStx :: S.Ty,
-  tyVal :: ~V.Ty
-}
-
-data Tm = Tm {
-  tmStx :: S.Tm,
-  tmVal :: ~V.Tm
+data Tm = Tm
+  { tmStx :: S.Tm,
+    tmVal :: ~V.Tm
   }
 
 binop :: S.BinOp -> Tm -> Tm -> Tm
 binop op (Tm s1 _) (Tm s2 _) = (Tm (S.BinOp op s1 s2) V.Opaque)
 
-report :: ReporterArg => Diagnostic -> IO ()
+report :: (ReporterArg) => Diagnostic -> IO ()
 report d = do
   let (Reporter r) = ?reporter
   r d
 
-error :: FileIdArg => ReporterArg => Span -> ADoc -> IO ()
+error :: (FileIdArg) => (ReporterArg) => Span -> ADoc -> IO ()
 error s msg = do
   let l = Loc ?fileId s
   let m = Marker l Here
   let d = Diagnostic ErrorS msg "" [m]
   report d
 
-bwdToFwd :: CtxArg => BwdIdx -> FwdIdx
+bwdToFwd :: (CtxArg) => BwdIdx -> FwdIdx
 bwdToFwd (BwdIdx i) = FwdIdx ((ctxLen ?ctx) - i - 1)
 
 lookup :: Elab (Name -> IO (Maybe (BwdIdx, V.Tm, V.Ty)))
@@ -80,10 +81,10 @@ lookup name = pure $ go (ctxLocals ?ctx) 0
     go LNil _ = Nothing
     go (LDef locals name' tm ty) i
       | name == name' = Just (i, tm, ty)
-      | otherwise     = go locals (i + 1)
+      | otherwise = go locals (i + 1)
     go (LBind locals name' ty) i
       | name == name' = Just (i, (V.Rigid (bwdToFwd i) V.SId), ty)
-      | otherwise     = go locals (i + 1)
+      | otherwise = go locals (i + 1)
 
 quoteTy :: Elab (V.Ty -> S.Ty)
 quoteTy V.Double = S.Double
@@ -97,7 +98,7 @@ eval :: Elab (S.Tm -> V.Tm)
 eval _ = V.Opaque
 
 freshMeta :: Elab (IO MetaVar)
-freshMeta = atomicModifyIORef ?metaEnv (\(MetaEnv i) -> (MetaEnv (i+1), MetaVar i))
+freshMeta = atomicModifyIORef ?metaEnv (\(MetaEnv i) -> (MetaEnv (i + 1), MetaVar i))
 
 -- Create a new type in an inferring context
 checkTyMeta :: Elab (IO Ty)
@@ -148,24 +149,25 @@ check ty n@(L s _) = do
       checkMeta
 
 ops :: Map Text S.BinOp
-ops = Map.fromList [
-  ("+", S.Add),
-  ("-", S.Sub),
-  ("*", S.Mul),
-  ("/", S.Div)
-  ]
+ops =
+  Map.fromList
+    [ ("+", S.Add),
+      ("-", S.Sub),
+      ("*", S.Mul),
+      ("/", S.Div)
+    ]
 
 gatherApp1s :: FNtn -> [FNtn] -> (FNtn, [FNtn])
-gatherApp1s (L _ (App1 f x)) args = gatherApp1s f (x:args)
+gatherApp1s (L _ (App1 f x)) args = gatherApp1s f (x : args)
 gatherApp1s n args = (n, args)
 
 checkArgs :: Elab ([FNtn] -> [(Name, S.Ty)] -> [S.Tm] -> IO (Ctx, [S.Tm]))
 checkArgs [] [] args = pure $ (?ctx, reverse args)
-checkArgs (argN:argNs) ((name, argTy):argTys) args = do
+checkArgs (argN : argNs) ((name, argTy) : argTys) args = do
   let ty = evalTy argTy
   arg <- check ty argN
-  let ?ctx = define ?ctx name (tmVal arg) ty in
-    checkArgs argNs argTys (tmStx arg:args)
+  let ?ctx = define ?ctx name (tmVal arg) ty
+   in checkArgs argNs argTys (tmStx arg : args)
 checkArgs _ _ _ = impossible
 
 lookupFunc :: Elab (Span -> Name -> MaybeT IO (S.Id S.Func, S.Func))
@@ -177,12 +179,13 @@ lookupFunc s name = go 0 (S.moduleFuncs ?module)
       empty
     go i (Snoc funcs f@(S.Func name' _ _ _))
       | name == name' = pure (S.Id i name, f)
-      | otherwise = go (i+1) funcs
+      | otherwise = go (i + 1) funcs
 
 orInferMeta :: Elab (MaybeT IO (Tm, V.Ty) -> IO (Tm, V.Ty))
-orInferMeta action = runMaybeT action >>= \case
-  Just res -> pure res
-  Nothing -> inferMeta
+orInferMeta action =
+  runMaybeT action >>= \case
+    Just res -> pure res
+    Nothing -> inferMeta
 
 infer :: Elab (FNtn -> IO (Tm, V.Ty))
 infer (L s (Ident n)) = do
@@ -198,11 +201,10 @@ infer n@(L _ (App1 _ _)) = do
     name <- asName fN
     (fid, fdef) <- lookupFunc (FNtn.span fN) name
     (ctx, args) <- liftIO $ checkArgs argNs (S.funcArgs fdef) []
-    let ?ctx = ctx in
-      let ty = evalTy (S.funcRetTy fdef)
-          val = eval (S.funcBody fdef)
-      in pure (Tm (S.TopApp fid args) val, ty)
-
+    let ?ctx = ctx
+     in let ty = evalTy (S.funcRetTy fdef)
+            val = eval (S.funcBody fdef)
+         in pure (Tm (S.TopApp fid args) val, ty)
 infer (L s (App2 (L _ (Keyword opN)) n1 n2)) = do
   t1 <- check V.Double n1
   t2 <- check V.Double n2
@@ -214,7 +216,6 @@ infer (L s (App2 (L _ (Keyword opN)) n1 n2)) = do
 infer (L s (Int _)) = do
   error s "integer literal only allowed in checking position"
   inferMeta
-
 infer (L s _) = do
   error s "unexpected notation for term"
   inferMeta
@@ -235,7 +236,7 @@ asApplication :: Elab (FNtn -> MaybeT IO (Name, [FNtn]))
 asApplication n = go n []
   where
     go (L _ (Ident name)) args = pure (Name name, args)
-    go (L _ (App1 f x)) args = go f (x:args)
+    go (L _ (App1 f x)) args = go f (x : args)
     go (L s _) _ = do
       liftIO $ error s "expected an application of a name to arguments"
       empty
@@ -252,8 +253,8 @@ elabArgs (argN : rest) args = do
   (nameN, tyN) <- asBinding argN
   name <- asName nameN
   (Ty tyS tyV) <- liftIO $ checkTy tyN
-  let ?ctx = bind ?ctx name tyV in
-    elabArgs rest ((name, tyS):args)
+  let ?ctx = bind ?ctx name tyV
+   in elabArgs rest ((name, tyS) : args)
 
 topDecl :: Elab (FNtnTop -> IO (Maybe S.TopDecl))
 topDecl (FNtnTop "def" _ n) = runMaybeT $ do
@@ -261,26 +262,27 @@ topDecl (FNtnTop "def" _ n) = runMaybeT $ do
   (app, retTyN) <- asBinding pat
   (name, argNs) <- asApplication app
   (args, ctx) <- elabArgs argNs []
-  let ?ctx = ctx in do
-    (Ty retTyS retTyV) <- liftIO $ checkTy retTyN
-    (Tm bodyS _) <- liftIO $ check retTyV bodyN
-    pure $ S.TFunc (S.Func name args retTyS bodyS)
+  let ?ctx = ctx
+   in do
+        (Ty retTyS retTyV) <- liftIO $ checkTy retTyN
+        (Tm bodyS _) <- liftIO $ check retTyV bodyN
+        pure $ S.TFunc (S.Func name args retTyS bodyS)
 topDecl (FNtnTop "eval" _ n) = do
   (tm, ty) <- infer n
   pure $ Just $ S.TEval $ S.Eval (tmStx tm) (quoteTy ty)
-
 topDecl (FNtnTop name s _) = do
   error s $ "unexpected toplevel \"" <> pretty name <> "\""
   pure Nothing
 
 doModule :: Elab ([FNtnTop] -> IO S.Module)
 doModule [] = pure ?module
-doModule (tn:rest) = topDecl tn >>= \case
-  Just (S.TFunc f) ->
-    let ?module = S.addFunc ?module f in doModule rest
-  Just (S.TEval tm) ->
-    let ?module = S.addEval ?module tm in doModule rest
-  Nothing -> doModule rest
+doModule (tn : rest) =
+  topDecl tn >>= \case
+    Just (S.TFunc f) ->
+      let ?module = S.addFunc ?module f in doModule rest
+    Just (S.TEval tm) ->
+      let ?module = S.addEval ?module tm in doModule rest
+    Nothing -> doModule rest
 
 elabModule :: Reporter -> FileId -> [FNtnTop] -> IO S.Module
 elabModule reporter fileId tns = do

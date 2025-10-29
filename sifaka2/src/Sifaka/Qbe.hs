@@ -1,22 +1,23 @@
 module Sifaka.Qbe where
 
 import Data.ByteString.Builder
+import Data.String (IsString (..))
 import Data.Text.Encoding (encodeUtf8Builder)
-import Data.Text.Lazy.Encoding qualified as TE
 import Data.Text.Lazy qualified as T
-import Sifaka.Common
-import System.Process
+import Data.Text.Lazy.Encoding qualified as TE
 import Debug.Trace (trace)
+import Sifaka.Common
 import System.IO
 import System.IO.Temp
-import Data.String (IsString(..))
+import System.Process
 
 class ToText a where
   txt :: a -> Builder
 
 traceQbe :: (ToText a) => a -> b -> b
 traceQbe x y = trace s y
-  where s = T.unpack $ TE.decodeUtf8 $ toLazyByteString $ txt x
+  where
+    s = T.unpack $ TE.decodeUtf8 $ toLazyByteString $ txt x
 
 data QbeName
   = StaticName Text
@@ -298,11 +299,11 @@ instance ToText Block where
       <> mconcat (indentedNL . txt <$> instructions)
       <> indentedNL (txt jump)
 
-data Module = Module {
-  moduleTypes :: [TypeDef],
-  moduleDatas :: [DataDef],
-  moduleFuncs :: [FuncDef]
-                     }
+data Module = Module
+  { moduleTypes :: [TypeDef],
+    moduleDatas :: [DataDef],
+    moduleFuncs :: [FuncDef]
+  }
 
 instance ToText Module where
   txt (Module ts ds fs) =
@@ -325,10 +326,9 @@ compile m out = do
           hPutBuilder qbeIn (txt m)
           hClose qbeIn
           _ <- waitForProcess qbeHandle
-          pure () )
+          pure ()
+      )
     callProcess "cc" [asmPath, "runtime/runtime.c", "-o", out]
-
-
 
 assemble :: Module -> FilePath -> IO ()
 assemble m objectPath = do
@@ -347,7 +347,8 @@ assemble m objectPath = do
               _ <- waitForProcess qbeHandle
               _ <- waitForProcess asHandle
               pure ()
-          ) )
+          )
+    )
 
 link :: [String] -> [FilePath] -> FilePath -> IO ()
 link options objectPaths out = do

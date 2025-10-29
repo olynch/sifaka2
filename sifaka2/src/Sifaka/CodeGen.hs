@@ -1,18 +1,17 @@
 module Sifaka.CodeGen where
 
 import Control.Monad.State
-
 import Sifaka.Common
 import Sifaka.Qbe
 import Sifaka.Syntax qualified as S
 
 data BS = BS
-    { bsFresh :: Int
-    , bsInstructions :: Bwd Inst
-    }
+  { bsFresh :: Int,
+    bsInstructions :: Bwd Inst
+  }
 
 newtype BlockM a = BlockM {unBlockM :: State BS a}
-    deriving (Functor, Applicative, Monad, MonadState BS)
+  deriving (Functor, Applicative, Monad, MonadState BS)
 
 runBlockM :: BlockM a -> (a, [Inst])
 runBlockM action =
@@ -64,7 +63,7 @@ doTm tm = case tm of
     v1 <- doTm tm1
     v2 <- doTm tm2
     emit1 (opToInst op v1 v2) Float64
-  S.Block ((_, tm1):bs) ret -> do
+  S.Block ((_, tm1) : bs) ret -> do
     v <- doTm tm1
     let ?env = Snoc ?env v in doTm (S.Block bs ret)
   S.Block [] ret -> doTm ret
@@ -85,10 +84,10 @@ doArgs args = go args []
   where
     go :: (?env :: Env) => [(Name, S.Ty)] -> [Param] -> BlockM (Env, [Param])
     go [] params = pure (?env, reverse params)
-    go ((_, ty):rest) params = do
+    go ((_, ty) : rest) params = do
       name <- freshLocal
-      let ?env = Snoc ?env (VIdent name) in
-        go rest (Param (ABase (doTy ty)) name : params)
+      let ?env = Snoc ?env (VIdent name)
+       in go rest (Param (ABase (doTy ty)) name : params)
 
 doFunc :: S.Func -> FuncDef
 doFunc (S.Func (Name name) args retTy body) =
@@ -101,9 +100,10 @@ doFunc (S.Func (Name name) args retTy body) =
   where
     ((params, ret), instructions) = runBlockM $ do
       (env, ps) <- let ?env = BwdNil in doArgs args
-      let ?env = env in do
-        r <- doTm body
-        pure (ps, r)
+      let ?env = env
+       in do
+            r <- doTm body
+            pure (ps, r)
     startBlock =
       Block (LabelName (StaticName "start")) [] instructions (Ret $ Just ret)
 
@@ -124,11 +124,12 @@ doMain evals =
     [startBlock]
   where
     (_, instructions) = runBlockM $ doEvals $ bwdToList evals
-    startBlock = Block
-      (LabelName (StaticName "start"))
-      []
-      instructions
-      (Ret $ Just (VConst (CNum 0)))
+    startBlock =
+      Block
+        (LabelName (StaticName "start"))
+        []
+        instructions
+        (Ret $ Just (VConst (CNum 0)))
 
 start :: FuncDef
 start = FuncDef [Export] Nothing "_start" [] [startBlock]
@@ -139,7 +140,8 @@ start = FuncDef [Export] Nothing "_start" [] [startBlock]
     startBlock = Block "start" [] instructions Hlt
 
 genModule :: S.Module -> Module
-genModule m = Module
-  []
-  []
-  (bwdToList $ Snoc (fmap doFunc (S.moduleFuncs m)) (doMain (S.moduleEvals m)))
+genModule m =
+  Module
+    []
+    []
+    (bwdToList $ Snoc (fmap doFunc (S.moduleFuncs m)) (doMain (S.moduleEvals m)))

@@ -1,9 +1,10 @@
-module Sifaka.Value (Spine(..), Literal(..), Tm(..), Ty(..)) where
+module Sifaka.Value (Spine (..), Literal (..), Tm (..), Ty (..)) where
 
 import Sifaka.Common
 
-data Spine = SId
-           | SApp Spine Tm
+data Spine
+  = SId
+  | SApp Spine Tm
 
 newtype Literal = LitFin Int
 
