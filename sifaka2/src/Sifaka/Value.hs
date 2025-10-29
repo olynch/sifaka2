@@ -6,18 +6,18 @@ data Spine
   = SId
   | SApp Spine Tm
 
-newtype Literal = LitFin Int
+newtype Literal = LitNat Word
 
 data Tm
-  = Rigid FwdIdx Spine
+  = Var FwdIdx Name
   | Flex MetaVar Spine
   | Lit Literal
   | Opaque
 
 data Ty
-  = Fin Tm
-  | TFlex MetaVar Spine
-  | Int
+  = TFlex MetaVar Spine
+  | Fin Tm
+  | Nat
   | Double
   | Record (Row Ty)
   | Arr Tm Ty

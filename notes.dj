@@ -16,4 +16,20 @@ We are going to do this incrementally; as we add features to the elaborator, we 
 
 ### Step 1
 
-Add support for the toplevel operations `def` and `eval`.
+Add support for the toplevel operations `def` and `eval` along with basic arithmetic.
+
+### Step 2
+
+Add support for arrays.
+
+This involves a couple things. First of all, we need a calling convention.
+
+Perhaps the simplest is that everything is passed as a pointer and we use
+destination-passing style for everything, with all necessary sizes/offsets
+computed dynamically.
+
+We can figure out more sophisticated calling conventions later.
+
+This means that we will start needing to use `Alloc` to manage the stack.
+Fortunately, we don't have to convert between "stack slots" and "pointers"
+like in cranelift.

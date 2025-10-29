@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Sifaka.Elab (elabModule) where
 
 import Control.Applicative (empty)
@@ -24,14 +25,15 @@ data MetaEnv = MetaEnv Int
 
 data Ctx = Ctx
   { ctxLen :: Word,
-    ctxLocals :: Locals
+    ctxLocals :: Locals,
+    ctxBDs :: Bwd S.BD
   }
 
 bind :: Ctx -> Name -> V.Ty -> Ctx
-bind (Ctx n l) name ty = Ctx (n + 1) (LBind l name ty)
+bind (Ctx n l bds) name ty = Ctx (n + 1) (LBind l name ty) (Snoc bds S.Bound)
 
 define :: Ctx -> Name -> V.Tm -> V.Ty -> Ctx
-define (Ctx n l) name v ty = Ctx (n + 1) (LDef l name v ty)
+define (Ctx n l bds) name v ty = Ctx (n + 1) (LDef l name v ty) (Snoc bds S.Defined)
 
 type CtxArg = (?ctx :: Ctx)
 
@@ -75,27 +77,78 @@ error s msg = do
 bwdToFwd :: (CtxArg) => BwdIdx -> FwdIdx
 bwdToFwd (BwdIdx i) = FwdIdx ((ctxLen ?ctx) - i - 1)
 
-lookup :: Elab (Name -> IO (Maybe (BwdIdx, V.Tm, V.Ty)))
-lookup name = pure $ go (ctxLocals ?ctx) 0
+fwdToBwd :: (CtxArg) => FwdIdx -> BwdIdx
+fwdToBwd (FwdIdx i) = BwdIdx ((ctxLen ?ctx) - i - 1)
+
+lookup :: Elab (Name -> Maybe (BwdIdx, V.Tm, V.Ty))
+lookup name = go (ctxLocals ?ctx) 0
   where
     go LNil _ = Nothing
     go (LDef locals name' tm ty) i
       | name == name' = Just (i, tm, ty)
       | otherwise = go locals (i + 1)
     go (LBind locals name' ty) i
-      | name == name' = Just (i, (V.Rigid (bwdToFwd i) V.SId), ty)
+      | name == name' = Just (i, (V.Var (bwdToFwd i) name), ty)
       | otherwise = go locals (i + 1)
 
 quoteTy :: Elab (V.Ty -> S.Ty)
+quoteTy (V.TFlex _ _) = impossible
+quoteTy (V.Fin tm) = S.Fin $ quote tm
+quoteTy V.Nat = S.Nat
 quoteTy V.Double = S.Double
-quoteTy _ = impossible
+quoteTy (V.Record _) = impossible
+quoteTy (V.Arr dom cod) = S.Arr (quote dom) (quoteTy cod)
 
 evalTy :: Elab (S.Ty -> V.Ty)
+evalTy (S.TMetaApp _ _) = impossible
+evalTy (S.TInsertedMeta _ _) = impossible
+evalTy (S.Fin tm) = V.Fin (eval tm)
+evalTy S.Nat = V.Nat
 evalTy S.Double = V.Double
-evalTy _ = impossible
+evalTy (S.Record _) = impossible
+evalTy (S.Arr dom cod) = V.Arr (eval dom) (evalTy cod)
+
+quoteSp :: Elab (V.Spine -> Bwd S.Tm)
+quoteSp V.SId = BwdNil
+quoteSp (V.SApp sp t) = Snoc (quoteSp sp) (quote t)
+
+quoteLit :: Elab (V.Literal -> S.Literal)
+quoteLit (V.LitNat i) = S.LitNat i
+
+quote :: Elab (V.Tm -> S.Tm)
+quote (V.Var i name) = S.LocalVar (S.Id (fwdToBwd i) name)
+quote (V.Flex mv sp) = S.MetaApp mv (quoteSp sp)
+quote (V.Lit lit) = S.Lit (quoteLit lit)
+quote V.Opaque = S.Opaque
+
+getVar :: Locals -> FwdIdx -> BwdIdx -> V.Tm
+getVar LNil _ _ = impossible
+getVar (LDef l _ tm _) i j
+  | j == 0 = tm
+  | otherwise = getVar l (i-1) (j-1)
+getVar (LBind l name _) i j
+  | j == 0 = V.Var i name
+  | otherwise = getVar l (i-1) (j-1)
+
+evalLit :: S.Literal -> V.Tm
+evalLit (S.LitFin _) = V.Opaque
+evalLit (S.LitNat n) = V.Lit (V.LitNat n)
+evalLit (S.LitDouble _) = V.Opaque
 
 eval :: Elab (S.Tm -> V.Tm)
-eval _ = V.Opaque
+eval (S.LocalVar (S.Id i _)) = getVar (ctxLocals ?ctx) (FwdIdx (ctxLen ?ctx)) i
+eval (S.TopApp _f _args) = impossible
+eval (S.InsertedMeta _mv _bds) = impossible
+eval (S.MetaApp _mv _args) = impossible
+eval (S.Lit lit) = evalLit lit
+eval (S.BinOp _ _ _) = V.Opaque
+eval (S.Block _bindings _ret) = impossible
+eval (S.RecordCon _) = impossible
+eval (S.Proj _ _) = impossible
+eval (S.ArrCon _) = impossible
+eval (S.ArrLam _ _) = impossible
+eval (S.Index _ _) = impossible
+eval S.Opaque = V.Opaque
 
 freshMeta :: Elab (IO MetaVar)
 freshMeta = atomicModifyIORef ?metaEnv (\(MetaEnv i) -> (MetaEnv (i + 1), MetaVar i))
@@ -106,7 +159,7 @@ checkTyMeta = do
   mv <- freshMeta
   -- NOTE: this is incorrect; we should actually pull out the spine from the
   -- curent environment
-  pure $ Ty (S.TMeta mv S.MSId) (V.TFlex mv V.SId)
+  pure $ Ty (S.TInsertedMeta mv (ctxBDs ?ctx)) (V.TFlex mv V.SId)
 
 -- Create a new meta in a checking context
 checkMeta :: Elab (IO Tm)
@@ -114,14 +167,14 @@ checkMeta = do
   mv <- freshMeta
   -- NOTE: this is incorrect; we should actually pull out the spine from the
   -- curent environment
-  pure $ Tm (S.Meta mv S.MSId) (V.Flex mv V.SId)
+  pure $ Tm (S.InsertedMeta mv (ctxBDs ?ctx)) (V.Flex mv V.SId)
 
 -- Create a new meta in an inferring context
 inferMeta :: Elab (IO (Tm, V.Ty))
 inferMeta = do
   tmM <- freshMeta
   tyM <- freshMeta
-  pure $ (Tm (S.Meta tmM S.MSId) (V.Flex tmM V.SId), V.TFlex tyM V.SId)
+  pure $ (Tm (S.InsertedMeta tmM (ctxBDs ?ctx)) (V.Flex tmM V.SId), V.TFlex tyM V.SId)
 
 checkTy :: Elab (FNtn -> IO Ty)
 checkTy (L _ (Keyword "Double")) = pure $ Ty S.Double V.Double
@@ -174,7 +227,7 @@ lookupFunc :: Elab (Span -> Name -> MaybeT IO (S.Id S.Func, S.Func))
 lookupFunc s name = go 0 (S.moduleFuncs ?module)
   where
     go :: BwdIdx -> Bwd S.Func -> MaybeT IO (S.Id S.Func, S.Func)
-    go i BwdNil = do
+    go _ BwdNil = do
       liftIO $ error s $ "no such function" <+> pretty name
       empty
     go i (Snoc funcs f@(S.Func name' _ _ _))
@@ -190,7 +243,7 @@ orInferMeta action =
 infer :: Elab (FNtn -> IO (Tm, V.Ty))
 infer (L s (Ident n)) = do
   let name = Name n
-  lookup name >>= \case
+  case lookup name of
     Just (i, tm, ty) -> pure $ (Tm (S.LocalVar (S.Id i name)) tm, ty)
     Nothing -> do
       error s ("no such variable" <+> pretty name)
@@ -291,5 +344,5 @@ elabModule reporter fileId tns = do
       ?fileId = fileId
       ?metaEnv = metaIORef
       ?module = S.emptyModule
-      ?ctx = Ctx 0 LNil
+      ?ctx = Ctx 0 LNil BwdNil
   doModule tns

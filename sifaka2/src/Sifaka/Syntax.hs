@@ -1,4 +1,4 @@
-module Sifaka.Syntax (Id (..), BinOp (..), Tm (..), Ty (..), Literal (..), MetaSub (..), TopDecl (..), Func (..), Eval (..), Module (..), emptyModule, addFunc, addEval) where
+module Sifaka.Syntax (Id (..), BinOp (..), Tm (..), Ty (..), Literal (..), BD (..), TopDecl (..), Func (..), Eval (..), Module (..), emptyModule, addFunc, addEval) where
 
 import Sifaka.Common
 
@@ -7,7 +7,8 @@ data Id a = Id BwdIdx Name
 data BinOp = Add | Sub | Mul | Div
 
 data Ty
-  = TMeta MetaVar MetaSub
+  = TMetaApp MetaVar (Bwd Tm)
+  | TInsertedMeta MetaVar (Bwd BD)
   | Fin Tm
   | Nat
   | Double
@@ -19,12 +20,13 @@ data Literal
   | LitFin Word
   | LitDouble Double
 
-data MetaSub = MSId
+data BD = Bound | Defined
 
 data Tm
   = LocalVar (Id Tm)
   | TopApp (Id Func) [Tm]
-  | Meta MetaVar MetaSub
+  | InsertedMeta MetaVar (Bwd BD)
+  | MetaApp MetaVar (Bwd Tm)
   | Lit Literal
   | BinOp BinOp Tm Tm
   | Block [(Name, Tm)] Tm
@@ -33,6 +35,7 @@ data Tm
   | ArrCon [Tm]
   | ArrLam Name Tm
   | Index [Tm] Tm
+  | Opaque
 
 data Func = Func
   { funcName :: Name,
