@@ -34,7 +34,7 @@ data Tm
   | Proj Tm Name
   | ArrCon [Tm]
   | ArrLam Name Tm
-  | Index [Tm] Tm
+  | Index Tm Tm
   | Opaque
 
 data Func = Func

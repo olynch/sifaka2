@@ -38,7 +38,7 @@ getNewlines p ps bs = case Utf8.uncons bs of
   Just (c, bs') ->
     let p' = p + charLen c
      in if c == '\n'
-          then getNewlines p' (p : ps) bs'
+          then getNewlines p' (p' : ps) bs'
           else getNewlines p' ps bs'
   Nothing -> V.fromList $ reverse (p : ps)
 
@@ -59,7 +59,7 @@ lineOf f p = Line lineSpan (lineIdx + 1)
     newlines = fileNewlines f
     lineIdx = max 0 (insertionPoint newlines p - 1)
     nextLineIdx = min (V.length newlines - 1) (lineIdx + 1)
-    lineSpan = Span (newlines V.! lineIdx) (newlines V.! nextLineIdx)
+    lineSpan = Span (newlines V.! lineIdx) (newlines V.! nextLineIdx - 1)
 
 linesBetween :: File -> BytePos -> BytePos -> [Line]
 linesBetween f p1 p2

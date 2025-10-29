@@ -7,6 +7,7 @@ data Spine
   | SApp Spine Tm
 
 newtype Literal = LitNat Word
+  deriving (Eq)
 
 data Tm
   = Var FwdIdx Name

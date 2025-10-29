@@ -18,7 +18,7 @@ instance Ord Prec where
     | otherwise = False
 
 data FNotationConfig = FNotationConfig
-  { keywords :: Set ByteString,
-    topdecls :: Set ByteString,
+  { keywords :: Set Text,
+    topdecls :: Set Text,
     precedences :: Map Text Prec
   }

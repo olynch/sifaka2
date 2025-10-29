@@ -38,14 +38,17 @@ main = do
   let allTests = testGroup "all tests" [gt, scTests]
   defaultMain allTests
 
-keywords :: Set ByteString
-keywords = Set.fromList ["+", "*"]
+keywords :: Set Text
+keywords = Set.fromList ["+", "*", "↦"]
 
 precs :: Map Text Prec
-precs = Map.fromList [("+", Prec 50 LeftA), ("*", Prec 60 LeftA)]
+precs = Map.fromList [("+", Prec 50 LeftA), ("*", Prec 60 LeftA), ("↦", Prec 30 RightA)]
+
+topDecls :: Set Text
+topDecls = Set.fromList ["def"]
 
 config :: FNotationConfig
-config = FNotationConfig keywords precs
+config = FNotationConfig keywords topDecls precs
 
 runWithReporter :: FilePath -> (Reporter -> ByteString -> FileId -> IO ADoc) -> IO LBS.ByteString
 runWithReporter p f = do
@@ -69,7 +72,7 @@ runParse :: FilePath -> IO LBS.ByteString
 runParse p = do
   runWithReporter p $ \r contents fileId -> do
     tokens <- lex r config contents
-    n <- parse config r fileId tokens contents
+    n <- parse r config fileId tokens contents
     return $ pretty n
 
 goldenTests :: IO TestTree

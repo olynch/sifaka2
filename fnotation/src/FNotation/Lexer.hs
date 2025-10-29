@@ -10,6 +10,7 @@ import Data.Foldable (for_)
 import Data.Functor ((<&>))
 import Data.Set qualified as Set
 import Data.Vector qualified as V
+import Data.Text.Encoding qualified as TE
 import FNotation.Config (FNotationConfig)
 import FNotation.Config qualified as Config
 import FNotation.Diagnostic (HasReporter (getReporter), Reporter)
@@ -43,8 +44,10 @@ next = state next'
       Just (c, bs) -> (Just c, s {remaining = bs, cur = cur s + charLen c})
       Nothing -> (Nothing, s)
 
-slice :: Lex ByteString
-slice = get <&> \s -> Span.slice (Span (prev s) (cur s)) (orig s)
+slice :: Lex Text
+slice = do
+  s <- get <&> \s -> Span.slice (Span (prev s) (cur s)) (orig s)
+  pure $ TE.decodeUtf8 s
 
 peek :: Lex (Maybe Char)
 peek = get <&> \s -> fst <$> Utf8.uncons (remaining s)
@@ -71,7 +74,7 @@ lex r config bs = do
   pure $ reverse $ tokens s'
 
 opChars :: Vector Char
-opChars = V.fromList ['+', '*', ':', '=', '/']
+opChars = V.fromList ['+', '*', ':', '=', '/', '>', '<', '↦', '!', '&']
 
 run :: Lex ()
 run = do
@@ -94,7 +97,7 @@ lex1 '.' = word >> emit FIELD
 lex1 '"' = many (/= '"') >> advance >> emit STRING
 lex1 c
   | Char.isSpace c = skip
-  | charIsIdent c = do
+  | charIsIdentStart c = do
       word
       slice >>= classifyIdent >>= emit
       run
@@ -117,17 +120,20 @@ many f = do
   mc <- peek
   for_ mc (\c -> when (f c) (advance >> many f))
 
-charIsIdent :: Char -> Bool
-charIsIdent c = Char.isAlpha c || c == '_'
+charIsIdentStart :: Char -> Bool
+charIsIdentStart c = Char.isAlpha c || c == '_'
 
-classifyOp :: ByteString -> Lex Tag
+charIsIdent :: Char -> Bool
+charIsIdent c = Char.isAlpha c || Char.isDigit c || c == '_'
+
+classifyOp :: Text -> Lex Tag
 classifyOp s = do
   keywords <- Config.keywords . config <$> get
   if Set.member s keywords
     then pure KEYWORD_OP
     else pure OP
 
-classifyIdent :: ByteString -> Lex Tag
+classifyIdent :: Text -> Lex Tag
 classifyIdent s = do
   keywords <- Config.keywords . config <$> get
   topdecls <- Config.topdecls . config <$> get

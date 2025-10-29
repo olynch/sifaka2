@@ -1,4 +1,10 @@
-def foo (x : Double) (y : Double) : Double = x + y * 2
+def arith1 (x : Double) (y : Double) : Double = x + y * 2
 
-eval foo 2 3
-eval foo 4 5
+eval arith1 2 3
+eval arith1 4 5
+
+def vAdd (n : Nat) (xs : n=>Double) (ys : n=>Double) : n=>Double =
+  i ↦ xs!i + ys!i
+
+def outerProd (n : Nat) (m : Nat) (xs : n=>Double) (ys : m=>Double) : n=>m=>Double =
+  i ↦ j ↦ xs!i * ys!j

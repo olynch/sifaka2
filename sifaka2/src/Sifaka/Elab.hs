@@ -178,19 +178,51 @@ inferMeta = do
 
 checkTy :: Elab (FNtn -> IO Ty)
 checkTy (L _ (Keyword "Double")) = pure $ Ty S.Double V.Double
+checkTy (L _ (Keyword "Nat")) = pure $ Ty S.Nat V.Nat
+checkTy (L _ (App1 (L _ (Keyword "Fin")) nN)) = do
+  (Tm nS nV) <- check V.Nat nN
+  pure $ Ty (S.Fin nS) (V.Fin nV)
+checkTy (L _ (App2 (L _ (Keyword "=>")) domN codN)) = do
+  (Tm domS domV) <- check V.Nat domN
+  (Ty codS codV) <- checkTy codN
+  pure $ Ty (S.Arr domS codS) (V.Arr domV codV)
 checkTy (L s _) = do
   error s "unexpected notation for type"
   checkTyMeta
 
 unifyTy :: Elab (V.Ty -> V.Ty -> IO Bool)
 unifyTy V.Double V.Double = pure True
-unifyTy _ _ = pure False
+unifyTy V.Nat V.Nat = pure True
+unifyTy (V.Arr dom1 cod1) (V.Arr dom2 cod2) =
+  (&&) <$> unify dom1 dom2 <*> unifyTy cod1 cod2
+unifyTy (V.Fin n1) (V.Fin n2) = unify n1 n2
+unifyTy _ _ = impossible
+
+unify :: Elab (V.Tm -> V.Tm -> IO Bool)
+unify (V.Lit l1) (V.Lit l2) = pure $ l1 == l2
+unify (V.Var i1 _) (V.Var i2 _) = pure $ i1 == i2
+unify V.Opaque V.Opaque = pure True
+unify _ _ = impossible
 
 check :: Elab (V.Ty -> FNtn -> IO Tm)
 check ty (L s (Int i)) = case ty of
-  V.Double -> pure (Tm (S.Lit (S.LitDouble (fromIntegral i))) V.Opaque)
+  V.Double -> pure $ Tm (S.Lit (S.LitDouble (fromIntegral i))) V.Opaque
+  V.Nat -> let n = fromIntegral i in
+    pure $ Tm (S.Lit (S.LitNat n)) (V.Lit (V.LitNat n))
   _ -> do
-    error s "can only check integer against double for now"
+    error s "can only check integer against Double or Nat"
+    checkMeta
+check ty (L s (App2 (L _ (Keyword "↦")) argNameN bodyN)) = case ty of
+  V.Arr dom cod -> runMaybeT (asName argNameN) >>= \case
+      Just name ->
+        let ?ctx = bind ?ctx name (V.Fin dom) in do
+          (Tm bodyS _) <- check cod bodyN
+          pure $ Tm (S.ArrLam name bodyS) V.Opaque
+      Nothing -> do
+        error (FNtn.span argNameN) "expected an ident"
+        checkMeta
+  _ -> do
+    error s "can only check lambda expression against array type"
     checkMeta
 check ty n@(L s _) = do
   (tm, synthed) <- infer n
@@ -258,16 +290,26 @@ infer n@(L _ (App1 _ _)) = do
      in let ty = evalTy (S.funcRetTy fdef)
             val = eval (S.funcBody fdef)
          in pure (Tm (S.TopApp fid args) val, ty)
-infer (L s (App2 (L _ (Keyword opN)) n1 n2)) = do
-  t1 <- check V.Double n1
-  t2 <- check V.Double n2
-  case ops Map.!? opN of
-    Just op -> pure (binop op t1 t2, V.Double)
-    Nothing -> do
-      error s $ "unrecognized operator" <+> pretty opN
-      inferMeta
+infer (L s (App2 (L _ (Keyword opName)) n1 n2))
+  | opName == "!" = do
+    (Tm aS _, aTy) <- infer n1
+    case aTy of
+      V.Arr dom cod -> do
+        Tm iS _ <- check (V.Fin dom) n2
+        pure (Tm (S.Index aS iS) V.Opaque, cod)
+      _ -> do
+        error (FNtn.span n1) "expected variable of array type"
+        inferMeta
+  | otherwise = do
+    t1 <- check V.Double n1
+    t2 <- check V.Double n2
+    case ops Map.!? opName of
+      Just op -> pure (binop op t1 t2, V.Double)
+      Nothing -> do
+        error s $ "unrecognized operator" <+> pretty opName
+        inferMeta
 infer (L s (Int _)) = do
-  error s "integer literal only allowed in checking position"
+  error s "integer literal must occur in checking position"
   inferMeta
 infer (L s _) = do
   error s "unexpected notation for term"
