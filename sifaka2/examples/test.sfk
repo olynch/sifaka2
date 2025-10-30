@@ -6,4 +6,4 @@ eval arith1 4 5
 def vAdd (n : Nat) (xs : n=>Double) (ys : n=>Double) : n=>Double =
   i ↦ xs!i + ys!i
 
-eval (vAdd 3 (i ↦ @cast i * @cast i) (i ↦ @cast i)) ! 2
+eval (vAdd 3 (i ↦ @cast i * @cast i) (i ↦ @cast i))!2
