@@ -14,6 +14,7 @@ module Sifaka.Common
     Row (..),
     MetaVar (..),
     impossible,
+    unimplemented,
   )
 where
 
@@ -47,6 +48,8 @@ impossible :: (Dbg) => a
 impossible = error "impossible"
 {-# NOINLINE impossible #-}
 
+unimplemented :: (Dbg) => a
+unimplemented = error "unimplemented"
 ---------------------------------------------------------------------
 
 class ElemAt a i b | a -> i b where
@@ -55,23 +58,27 @@ class ElemAt a i b | a -> i b where
 newtype FwdIdx = FwdIdx Word
   deriving (Eq, Ord, Show, Num, Enum, Bits, Integral, Real) via Word
 
-data Fwd a = FwdNil | Cons a (Fwd a)
+infixr 4 :<
+
+data Fwd a = FwdNil | (:<) a (Fwd a)
 
 instance ElemAt (Fwd a) FwdIdx a where
   elemAt FwdNil _ = impossible
-  elemAt (Cons x xs) i
+  elemAt (x :< xs) i
     | i == 0 = x
     | otherwise = elemAt xs (i + 1)
 
 newtype BwdIdx = BwdIdx Word
   deriving (Eq, Ord, Show, Num, Enum, Bits, Integral, Real) via Word
 
-data Bwd a = BwdNil | Snoc (Bwd a) a
+infixl 4 :>
+
+data Bwd a = BwdNil | (:>) (Bwd a) a
   deriving (Functor)
 
 instance ElemAt (Bwd a) BwdIdx a where
   elemAt BwdNil _ = impossible
-  elemAt (Snoc xs x) i
+  elemAt (xs :> x) i
     | i == 0 = x
     | otherwise = elemAt xs (i - 1)
 
@@ -79,7 +86,7 @@ bwdToList :: Bwd a -> [a]
 bwdToList b = go b []
   where
     go BwdNil xs = xs
-    go (Snoc rest x) xs = go rest (x : xs)
+    go (rest :> x) xs = go rest (x : xs)
 
 ---------------------------------------------------------------------
 

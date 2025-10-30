@@ -244,8 +244,11 @@ data Inst1
   | Sar Val Val
   | Shr Val Val
   | Shl Val Val
-  | Load ExtTy Val Val
+  | Load ExtTy Val
   | Alloc Align Val
+  | Cule BaseTy Val Val
+  | Cult BaseTy Val Val
+  | UWToF Val
 
 inst :: ByteString -> [Val] -> Builder
 inst name args = byteString name <+> commaSep (txt <$> args)
@@ -265,8 +268,11 @@ instance ToText Inst1 where
   txt (Sar v1 v2) = inst "sar" [v1, v2]
   txt (Shr v1 v2) = inst "shr" [v1, v2]
   txt (Shl v1 v2) = inst "shl" [v1, v2]
-  txt (Load ty v1 v2) = "load" <> txt ty <+> commaSep [txt v1, txt v2]
-  txt (Alloc a v) = "alloc" <> commaSep [txt a, txt v]
+  txt (Cule ty v1 v2) = "cule" <> txt ty <+> commaSep [txt v1, txt v2]
+  txt (Cult ty v1 v2) = "cult" <> txt ty <+> commaSep [txt v1, txt v2]
+  txt (UWToF v) = inst "uwtof" [v]
+  txt (Load ty v1) = "load" <> txt ty <+> commaSep [txt v1]
+  txt (Alloc (Align i) v) = "alloc" <> intDec i <+> txt v
 
 data Inst0
   = Store ExtTy Val Val
@@ -282,7 +288,7 @@ instance ToText Phi where
   txt (Phi name ty vs) =
     txt name
       <+> "="
-      <+> txt ty
+      <> txt ty
       <+> "phi"
       <+> commaSep [txt b <+> txt v | (b, v) <- vs]
 

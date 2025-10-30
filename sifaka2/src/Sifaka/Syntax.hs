@@ -1,8 +1,28 @@
-module Sifaka.Syntax (Id (..), BinOp (..), Tm (..), Ty (..), Literal (..), BD (..), TopDecl (..), Func (..), Eval (..), Module (..), emptyModule, addFunc, addEval) where
+module Sifaka.Syntax
+  ( Id (..),
+    GlobalId (..),
+    BinOp (..),
+    Tm (..),
+    Ty (..),
+    Literal (..),
+    BD (..),
+    TopDecl (..),
+    Func (..),
+    Eval (..),
+    Module (..),
+    emptyModule,
+    addFunc,
+    addEval,
+  )
+where
+
+import Data.Map qualified as Map
 
 import Sifaka.Common
 
 data Id a = Id BwdIdx Name
+
+data GlobalId a = GlobalId Name
 
 data BinOp = Add | Sub | Mul | Div
 
@@ -24,17 +44,18 @@ data BD = Bound | Defined
 
 data Tm
   = LocalVar (Id Tm)
-  | TopApp (Id Func) [Tm]
+  | TopApp (GlobalId Func) [Tm]
   | InsertedMeta MetaVar (Bwd BD)
   | MetaApp MetaVar (Bwd Tm)
   | Lit Literal
+  | IToF Tm
   | BinOp BinOp Tm Tm
   | Block [(Name, Tm)] Tm
   | RecordCon (Row Tm)
   | Proj Tm Name
   | ArrCon [Tm]
-  | ArrLam Name Tm
-  | Index Tm Tm
+  | ArrLam Name {- inferred length -} Tm {- return type-} Ty {- body -} Tm
+  | Index Tm Ty Tm
   | Opaque
 
 data Func = Func
@@ -49,15 +70,19 @@ data Eval = Eval Tm Ty
 data TopDecl = TFunc Func | TEval Eval
 
 data Module = Module
-  { moduleFuncs :: Bwd Func,
+  { moduleFuncs :: Map Name Func,
+    moduleFuncsInOrder :: Bwd Func,
     moduleEvals :: Bwd Eval
   }
 
 emptyModule :: Module
-emptyModule = Module BwdNil BwdNil
+emptyModule = Module (Map.empty) BwdNil BwdNil
 
 addFunc :: Module -> Func -> Module
-addFunc m f = m {moduleFuncs = Snoc (moduleFuncs m) f}
+addFunc m f = m {
+  moduleFuncs = Map.insert (funcName f) f (moduleFuncs m),
+  moduleFuncsInOrder = moduleFuncsInOrder m :> f
+}
 
 addEval :: Module -> Eval -> Module
-addEval m f = m {moduleEvals = Snoc (moduleEvals m) f}
+addEval m f = m {moduleEvals = moduleEvals m :> f}

@@ -6,5 +6,4 @@ eval arith1 4 5
 def vAdd (n : Nat) (xs : n=>Double) (ys : n=>Double) : n=>Double =
   i ↦ xs!i + ys!i
 
-def outerProd (n : Nat) (m : Nat) (xs : n=>Double) (ys : m=>Double) : n=>m=>Double =
-  i ↦ j ↦ xs!i * ys!j
+eval (vAdd 3 (i ↦ @cast i * @cast i) (i ↦ @cast i)) ! 2

@@ -89,6 +89,7 @@ main = do
   if (argsCodeGen args)
     then do
       let irMod = genModule coreMod
+      hPutBuilder stdout (Qbe.txt irMod)
       Qbe.compile irMod (argsOut args)
       if (argsRun args)
         then callProcess (argsOut args) []

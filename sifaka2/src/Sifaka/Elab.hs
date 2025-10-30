@@ -30,10 +30,10 @@ data Ctx = Ctx
   }
 
 bind :: Ctx -> Name -> V.Ty -> Ctx
-bind (Ctx n l bds) name ty = Ctx (n + 1) (LBind l name ty) (Snoc bds S.Bound)
+bind (Ctx n l bds) name ty = Ctx (n + 1) (LBind l name ty) (bds :> S.Bound)
 
 define :: Ctx -> Name -> V.Tm -> V.Ty -> Ctx
-define (Ctx n l bds) name v ty = Ctx (n + 1) (LDef l name v ty) (Snoc bds S.Defined)
+define (Ctx n l bds) name v ty = Ctx (n + 1) (LDef l name v ty) (bds :> S.Defined)
 
 type CtxArg = (?ctx :: Ctx)
 
@@ -110,7 +110,7 @@ evalTy (S.Arr dom cod) = V.Arr (eval dom) (evalTy cod)
 
 quoteSp :: Elab (V.Spine -> Bwd S.Tm)
 quoteSp V.SId = BwdNil
-quoteSp (V.SApp sp t) = Snoc (quoteSp sp) (quote t)
+quoteSp (V.SApp sp t) = quoteSp sp :> quote t
 
 quoteLit :: Elab (V.Literal -> S.Literal)
 quoteLit (V.LitNat i) = S.LitNat i
@@ -143,11 +143,11 @@ eval (S.MetaApp _mv _args) = impossible
 eval (S.Lit lit) = evalLit lit
 eval (S.BinOp _ _ _) = V.Opaque
 eval (S.Block _bindings _ret) = impossible
-eval (S.RecordCon _) = impossible
-eval (S.Proj _ _) = impossible
-eval (S.ArrCon _) = impossible
-eval (S.ArrLam _ _) = impossible
-eval (S.Index _ _) = impossible
+eval (S.RecordCon _) = V.Opaque
+eval (S.Proj _ _) = V.Opaque
+eval (S.ArrCon _) = V.Opaque
+eval (S.ArrLam _ _ _ _) = V.Opaque
+eval (S.Index _ _ _) = V.Opaque
 eval S.Opaque = V.Opaque
 
 freshMeta :: Elab (IO MetaVar)
@@ -196,7 +196,7 @@ unifyTy V.Nat V.Nat = pure True
 unifyTy (V.Arr dom1 cod1) (V.Arr dom2 cod2) =
   (&&) <$> unify dom1 dom2 <*> unifyTy cod1 cod2
 unifyTy (V.Fin n1) (V.Fin n2) = unify n1 n2
-unifyTy _ _ = impossible
+unifyTy _ _ = pure False
 
 unify :: Elab (V.Tm -> V.Tm -> IO Bool)
 unify (V.Lit l1) (V.Lit l2) = pure $ l1 == l2
@@ -209,21 +209,36 @@ check ty (L s (Int i)) = case ty of
   V.Double -> pure $ Tm (S.Lit (S.LitDouble (fromIntegral i))) V.Opaque
   V.Nat -> let n = fromIntegral i in
     pure $ Tm (S.Lit (S.LitNat n)) (V.Lit (V.LitNat n))
+  V.Fin n -> let j = fromIntegral i in
+    pure $ Tm (S.Lit (S.LitFin j)) V.Opaque
   _ -> do
     error s "can only check integer against Double or Nat"
     checkMeta
 check ty (L s (App2 (L _ (Keyword "↦")) argNameN bodyN)) = case ty of
-  V.Arr dom cod -> runMaybeT (asName argNameN) >>= \case
+  V.Arr dom cod -> do
+    let domS = quote dom
+    let codS = quoteTy cod
+    runMaybeT (asName argNameN) >>= \case
       Just name ->
         let ?ctx = bind ?ctx name (V.Fin dom) in do
           (Tm bodyS _) <- check cod bodyN
-          pure $ Tm (S.ArrLam name bodyS) V.Opaque
+          pure $ Tm (S.ArrLam name domS codS bodyS) V.Opaque
       Nothing -> do
         error (FNtn.span argNameN) "expected an ident"
         checkMeta
   _ -> do
     error s "can only check lambda expression against array type"
     checkMeta
+check ty (L s (App1 (L _ (Prim "cast")) tmN)) = do
+  (Tm tmS tmV, inferred) <- infer tmN
+  unifyTy ty inferred >>= \unifies -> if unifies
+    then pure (Tm tmS tmV)
+    else case (ty, inferred) of
+      (V.Double, V.Fin _) -> pure $ Tm (S.IToF tmS) V.Opaque
+      (V.Double, V.Nat) -> pure $ Tm (S.IToF tmS) V.Opaque
+      _ -> do
+        error s "cannot cast"
+        checkMeta
 check ty n@(L s _) = do
   (tm, synthed) <- infer n
   unifies <- unifyTy ty synthed
@@ -255,16 +270,12 @@ checkArgs (argN : argNs) ((name, argTy) : argTys) args = do
    in checkArgs argNs argTys (tmStx arg : args)
 checkArgs _ _ _ = impossible
 
-lookupFunc :: Elab (Span -> Name -> MaybeT IO (S.Id S.Func, S.Func))
-lookupFunc s name = go 0 (S.moduleFuncs ?module)
-  where
-    go :: BwdIdx -> Bwd S.Func -> MaybeT IO (S.Id S.Func, S.Func)
-    go _ BwdNil = do
-      liftIO $ error s $ "no such function" <+> pretty name
-      empty
-    go i (Snoc funcs f@(S.Func name' _ _ _))
-      | name == name' = pure (S.Id i name, f)
-      | otherwise = go (i + 1) funcs
+lookupFunc :: Elab (Span -> Name -> MaybeT IO (S.GlobalId S.Func, S.Func))
+lookupFunc s name = case (S.moduleFuncs ?module) Map.!? name of
+  Just f -> pure (S.GlobalId name, f)
+  Nothing -> do
+    liftIO $ error s $ "no such function" <+> pretty name
+    empty
 
 orInferMeta :: Elab (MaybeT IO (Tm, V.Ty) -> IO (Tm, V.Ty))
 orInferMeta action =
@@ -296,7 +307,8 @@ infer (L s (App2 (L _ (Keyword opName)) n1 n2))
     case aTy of
       V.Arr dom cod -> do
         Tm iS _ <- check (V.Fin dom) n2
-        pure (Tm (S.Index aS iS) V.Opaque, cod)
+        let codS = quoteTy cod
+        pure (Tm (S.Index aS codS iS) V.Opaque, cod)
       _ -> do
         error (FNtn.span n1) "expected variable of array type"
         inferMeta
