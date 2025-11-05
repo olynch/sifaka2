@@ -1,0 +1,39 @@
+sig Graph = [
+  e : Type / Enumerable,
+  v : Type / Enumerable,
+  src : e -> v,
+  tgt : e -> v,
+]
+
+def IntGraph : Type = [
+  eN : Nat,
+  vN : Nat,
+  srcArr : Fin eN => Fin vN,
+  tgtArr : Fin eN => Fin vN,
+  include Graph / [
+    e := Fin eN,
+    v := Fin vN,
+    src := i ↦ srcArr!i,
+    tgt := i ↦ srcArr!i
+  ],
+]
+
+def HashGraph (v : Type) (e : Type / Hash) : Type = [
+  edges : Set e,
+  vertices : Set v,
+  srcMap : Map (Elem edges) (Elem vertices),
+  tgtMap : Map (Elem vertices) (Elem vertices),
+  include Graph / [
+    e := Elem edges,
+    v := Elem vertices,
+    src := i ↦ srcMap ! i,
+    tgt := i ↦ tgtMap ! i
+  ]
+]
+
+def ReverseGraph (G : Graph) : Graph := [
+  e := G.e,
+  v := G.v,
+  src := G.tgt,
+  tgt := G.src
+]

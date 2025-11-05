@@ -1,22 +1,33 @@
 # Sifaka2
 
-Sifaka2 tries to realize the vision of [dex](github.com/google-research/dex-lang) in a unified language in the style of 1ML.
+Sifaka2 tries to realize the vision of
+[dex](github.com/google-research/dex-lang) in a unified language in the style of
+1ML.
 
-This is achieved by a dependent language with first-class support for the phase distinctions that are associated with *typechecking* and *code generation*.
+This is achieved by a dependent language with first-class support for the phase
+distinctions that are associated with *typechecking* and *code generation*.
 
-The phase distinction for typechecking concerns the abstract interpretation that is performed during elaboration. This is well-modeled by the open modality for a proposition.
+The phase distinction for typechecking concerns the abstract interpretation that
+is performed during elaboration. This is well-modeled by the open modality for a
+proposition.
 
-The phase distinction for code generation tells us for which arguments is a function partially-evaluated with respect to during compilation.
+The phase distinction for code generation tells us for which arguments is a
+function partially-evaluated with respect to during compilation.
 
 ## Plan
 
-The needs of elaboration and code generation are intertwined with one another. That is, the core language needs to be designed in such a way as to support code generation.
+The needs of elaboration and code generation are intertwined with one another.
+That is, the core language needs to be designed in such a way as to support code
+generation.
 
-We are going to do this incrementally; as we add features to the elaborator, we will also add more features to the code generator. At a certain point, we may need an intermediate step between them as well.
+We are going to do this incrementally; as we add features to the elaborator, we
+will also add more features to the code generator. At a certain point, we may
+need an intermediate step between them as well.
 
 ### Step 1
 
-Add support for the toplevel operations `def` and `eval` along with basic arithmetic.
+Add support for the toplevel operations `def` and `eval` along with basic
+arithmetic.
 
 ### Step 2
 
@@ -33,3 +44,27 @@ We can figure out more sophisticated calling conventions later.
 This means that we will start needing to use `Alloc` to manage the stack.
 Fortunately, we don't have to convert between "stack slots" and "pointers"
 like in cranelift.
+
+We ended up going even simpler, and allocating each array with malloc, not
+worrying about deallocation.
+
+### Step 3
+
+There are a couple directions to go from here.
+
+- Proper mangling
+- Array literals
+- Record types
+- Effects
+- Generic types/partial evaluation
+- Destination-passing/stack allocation
+- Unboxed arrays
+- Second-class function types
+- Typeclasses
+- Autodiff
+- Unification/implicits
+- Unicode syntax
+
+The question is will we want a major refactor in order to implement some of the later features on this list, so it makes more sense to implement those before simpler features?
+
+Maybe it also makes sense to take a step back and work out the type theory in detail before moving forward? Also prepare some "dream code".

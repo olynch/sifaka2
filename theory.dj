@@ -1,0 +1,257 @@
+# Theory of 1ML via a modality
+
+## Base dependent type theory
+
+$$`
+\gdef\jctx{\;\mathrm{ctx}}
+\gdef\jsub{\;\mathrm{sub}}
+\gdef\jty{\;\mathrm{ty}}
+\gdef\jtele{\;\vec{\mathrm{ty}}}
+\gdef\jprop{\;\mathrm{prop}}
+\gdef\jtrue{\;\mathrm{true}}
+\gdef\yields{\vdash}
+\gdef\unpack{\mathbf{unpack}}
+\gdef\Open#1{{\Large \circ}{#1}}
+\gdef\Close#1{{\Large \bullet}{#1}}
+\gdef\OpenEta{\eta^{\circ}}
+\gdef\CloseEta{\eta^{\bullet}}
+\gdef\isStatic#1{\mathrm{isStatic}(#1)}
+\gdef\isDynamic#1{\mathrm{isDynamic}(#1)}
+\gdef\isSmall#1{\mathrm{isSmall}(#1)}
+\gdef\isFinite#1{\mathrm{isFinite}(#1)}
+\gdef\USmall{\U_\mathrm{Small}}
+\gdef\UFinite{\U_\mathrm{Finite}}
+\gdef\code#1{|#1|}
+\gdef\llet{\mathbf{let}\:\:}
+\gdef\inn{\:\:\mathbf{in}\:\:}
+\gdef\unit{\top}
+\gdef\subst{\backslash}
+\gdef\U{\mathcal{U}}
+\gdef\F{\mathcal{F}}
+\gdef\Elt{\mathrm{Elt}}
+`
+
+### Judgments
+
+$$`\begin{align*}
+&\Gamma \jctx \\
+&\Gamma \yields \gamma \colon \Delta \jsub \\
+&\Gamma \yields A \jty \\
+&\Gamma \yields a \colon A \\
+&\Gamma \yields \vec{A} \jtele \\
+&\Gamma \yields \vec{a} \colon \vec{A} \\
+&\Gamma \yields P \jprop \\
+&\Gamma \yields P \jtrue \\
+\end{align*}`
+
+### Structural laws
+
+Contexts and substitutions form a category, types and teletypes are presheaves over this category, and terms and teleterms are indexed presheaves over types and teletypes, respectively. We use the notation $`-[-]` for the action of substitutions on elements of a presheaf/indexed presheaf, for instance:
+
+$$`\begin{align*}
+\frac{
+  \Delta \yields A \jty \qquad \Gamma \yields \gamma \colon \Delta \jsub
+}{
+  \Gamma \yields A[\gamma] \jty
+} \qquad
+\frac{
+  \Delta \yields a : A \qquad \Gamma \yields \gamma \colon \Delta \jsub
+}{
+  \Gamma \yields a[\gamma] \colon A[\gamma]
+}
+\end{align*}`
+
+We have a comprehension structure on contexts and telescopes, namely:
+
+$$`
+\frac{}{\bullet \jctx} \qquad \frac{\Gamma \yields A \jty}{\Gamma, x \colon A \jctx} \\
+`
+$$`
+\frac{
+  \Gamma \yields \gamma \colon \Delta \jsub \qquad \Delta \yields A \jty \qquad \Gamma \yields a \colon A[\gamma]
+}{
+  \Gamma \yields (\gamma, a) \colon \Delta, x \colon A
+}
+`
+
+$$`
+\frac{\Gamma \yields \vec{A} \jtele}{\Gamma, \vec{A} \jctx} \qquad \frac{}{\Gamma \yields \bullet \jtele} \qquad \frac{\Gamma \yields \vec{A} \jtele \qquad \Gamma,\vec{A} \yields B \jty}{\Gamma \yields \vec{A},y \colon B \jtele}
+`
+$$`
+\frac{}{\Gamma,\bullet \equiv \Gamma \jctx} \qquad \frac{}{(\Gamma,(\vec{A},y \colon B)) \equiv ((\Gamma,\vec{A}),y \colon B) \jctx}
+`
+$$`
+\frac{
+  \Gamma \yields \gamma \colon \Delta \qquad \Delta \yields \vec{A} \jtele \qquad \Gamma \yields \vec{a} \colon \vec{A}[\gamma]
+}{
+  \Gamma \yields (\gamma,\vec{a}) \colon (\Delta,\vec{A})
+}
+`
+
+We should also allow propositions to appear in contexts and telescopes. Propositions should be _extensional_, in the sense that whether or not a proposition is true in a context should be filled in by a solver; propositions essentially give us the ability to do type classes.
+
+### Record types
+
+$$`\begin{align*}
+\frac{\Gamma \yields \vec{A} \jtele}{\Gamma \yields [\vec{A}] \jty}
+\end{align*}`
+
+$$`\begin{align*}
+\frac{\Gamma \yields \vec{a} \colon \vec{A}}{\Gamma \yields [\vec{a}] \colon [\vec{A}]} \qquad
+\frac{\Gamma \yields a \colon [\vec{A}, y \colon B]}{\Gamma \yields \unpack\,a \colon \vec{A}}
+\end{align*}`
+
+$$`[\unpack\,a] \equiv a \qquad \unpack [\vec{a}] \equiv \vec{a}`
+
+### Static modality
+
+$$`
+\frac{\Gamma \yields A \jty}{\Gamma \yields \isStatic{A} \jprop} \qquad
+\frac{\Gamma \yields A \jty}{\Gamma \yields \Open{A} \jty} \qquad
+\frac{\Gamma \yields A \jty}{\Gamma \yields \isStatic{\Open{A}} \jtrue} \qquad
+\frac{\Gamma \yields \isStatic{A} \jtrue}{\Gamma \yields \Open{A} \equiv A \jty}
+`
+
+$$`
+\frac{\Gamma \yields a \colon A}{\Gamma \yields \OpenEta_A(a) \colon \Open{A}}
+`
+
+$$`
+\frac{\Gamma \yields A \jty}{\Open{\Gamma} \yields A \jty}
+`
+
+$$`
+\frac{\Gamma \yields A \jty \qquad \Gamma, x \colon A \yields \isStatic{B} \jtrue \qquad \Gamma \yields a \colon \Open{A} \qquad \Gamma,x \colon A \yields b \colon B}{\Gamma \yields (\llet x \leftarrow a \inn b) \colon B[x \subst a]}
+`
+
+$$`\begin{align*}
+\frac{\Gamma \yields A \jty \qquad \Gamma, x \colon A \yields \isStatic{B} \jtrue \qquad \Gamma \yields a \colon A \qquad \Gamma,x\colon A \yields b \colon B}{(\llet x \leftarrow \OpenEta_A(a) \inn b \equiv b[x \subst a]) \colon B[x \subst \OpenEta_A(a)]} \qquad
+\end{align*}`
+
+$$`
+\frac{\Gamma \yields \isStatic{A} \jtrue \qquad \Gamma \yields a \colon A}{\Gamma \yields \OpenEta_A(a) \equiv a \colon A}
+`
+
+### Dynamic modality
+
+$$`
+\frac{\Gamma \yields A \jty}{\Gamma \yields \isDynamic{A} \jprop} \qquad
+\frac{\Gamma \yields A \jty}{\Gamma \yields \Close{A} \jty} \qquad
+\frac{\Gamma \yields A \jty}{\Gamma \yields \Close{A} \jty} \qquad
+\frac{\Gamma \yields \isDynamic{A} \jtrue}{\Gamma \yields \Close{A} \equiv A}
+`
+
+$$`
+\frac{\Gamma \yields a \colon A}{\Gamma \yields \CloseEta_A(a) \colon \Close{A}} \qquad
+`
+
+$$`
+\frac{\Gamma \yields \isDynamic{A} \jtrue}{\Gamma \yields \Open{A} \equiv \unit \jty}
+`
+
+$$`
+\frac{\Gamma \yields A \jty \qquad \Gamma \yields \isDynamic{B} \jtrue \qquad \Gamma \yields a \colon \Close{A} \qquad \Gamma, x \colon A \yields b \colon B}{\Gamma \yields (\llet x \leftarrow a \inn b) \colon B[x \subst a]}
+`
+
+### Universes
+
+Universes internalize types satisfying certain propositions. For instance:
+
+$$`
+\frac{\Gamma \yields A \jty}{\Gamma \yields \isSmall{A} \jprop} \qquad \frac{\Gamma \yields \isSmall{A} \jtrue}{\Gamma \yields A \colon \USmall} \qquad \frac{\Gamma \yields A \colon \USmall}{\Gamma \yields \isSmall{A} \jtrue}
+`
+
+We axiomatize universe containment using propositional implication, for instance we could have
+
+$$`
+\frac{\Gamma \yields \isSmall{A} \jtrue}{\Gamma \yields \isDynamic{A} \jtrue}
+`
+
+We can have a universe of finite types, specified as a subuniverse of small types.
+
+$$`
+\frac{\Gamma \yields A \jty}{\Gamma \yields \isFinite{A} \jprop} \qquad
+\frac{\Gamma \yields \isFinite{A} \jtrue}{\Gamma \yields \isSmall{A} \jtrue}
+`
+
+### Functions
+
+The machinery that we have set up allows us to deal with functions in a fairly careful way, which is nice.
+
+Let us first review the rules for (dependent) functions.
+
+$$`
+\frac{\Gamma, x \colon A \yields B \jty}{\Gamma \yields (x \colon A) \to B \jty}
+`
+
+$$`
+\frac{\Gamma, x \colon A \yields b \colon B}{\Gamma \yields \lambda x.b \colon (x \colon A) \to B} \qquad \frac{\Gamma \yields f \colon (x \colon A) \to B \qquad \Gamma \yields a \colon A}{\Gamma \yields f\,a \colon B[x \subst a]}
+`
+
+$$`
+\frac{\Gamma, x \colon A \yields b \colon B \qquad \Gamma \yields a \colon A}{\Gamma \yields (\lambda x.b)\,a \equiv b[x \subst a] \colon B[x \subst a]} \qquad
+\frac{\Gamma \yields f \colon (x \colon A) \to B}{\Gamma \yields f \equiv (\lambda x. f x) \colon (x \colon A) \to B}
+`
+
+We can consider some special cases. First of all, in the case that we have $`\Gamma \yields \isDynamic{A} \jtrue`, this is a non-dependent function. If in addition we have $`\Gamma \yields \isStatic{B} \jtrue`, this must be a constant function.
+
+More generally, we have a table of special cases.
+
+|                  | domain static | domain dynamic |
+| codomain static  | kind-level    | constant       |
+| codomain dynamic | forall        | type-level     |
+
+We can also restrict functions in various ways.
+
+For instance, one restriction is "table types."
+
+$$`
+\frac{\Gamma \yields \isFinite{A} \jtrue \qquad \Gamma, x \colon A \yields B \jty}{\Gamma \yields (x \colon A) \Rightarrow B \jty}
+`
+
+We could also only allow functions between small types. Note that this would not restrict our ability to write down module functors, because they can be seen as top-level _judgments_ rather than elements of pi types.
+
+We also have the ability to make function types between small types, but not say that these function types are themselves small, so that small types are exclusively "positive".
+
+### Booleans
+
+We can have two types of booleans: dynamic booleans and static booleans.
+
+We can only eliminate out of dynamic booleans into dynamic types. Thus, if we are to decide between two module types at runtime, they must be "dynamicized".
+
+### Subtyping and singleton types
+
+# Discussion
+
+The static/dynamic modalities allow us to give a type-theoretic account of "value-dependent types" and "path-dependent types". Specifically, the eliminator for the dynamic modality allows us to bind an opaque value to a new identifier, and then work with it as a neutral element of the original type.
+
+## Translation of 1ML into our theory.
+
+1ML can be expressed by:
+
+- Arbitrary pi types
+- A universe for dynamic types
+- Dynamic booleans
+
+Can we prove this?
+
+## Inference
+
+We want to use bidirectional elaboration with metavariables and unification.
+
+## Compilation
+
+At some point, we should investigate partial evaluation in order to monomorphize functions for good performance. But perhaps the first implementation should just have an interpreter? Or compile to a uniform value representation (something like OCaml, where everything is boxed).
+
+What's the next concrete step? This should be informed by
+
+1. The talk on Wednesday.
+2. The workshop.
+3. Transfer.
+4. Paper.
+
+Let's think about this while we do other things.
+
+# What do we want in sifaka?
+
+1.
