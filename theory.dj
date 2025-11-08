@@ -254,4 +254,6 @@ Let's think about this while we do other things.
 
 # What do we want in sifaka?
 
-1.
+1. Modules for finite types
+
+I'd like to think carefully about nominality here/submodules. But let's first do the closed type theory case.

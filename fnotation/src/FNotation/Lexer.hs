@@ -9,8 +9,8 @@ import Data.Char qualified as Char
 import Data.Foldable (for_)
 import Data.Functor ((<&>))
 import Data.Set qualified as Set
-import Data.Vector qualified as V
 import Data.Text.Encoding qualified as TE
+import Data.Vector qualified as V
 import FNotation.Config (FNotationConfig)
 import FNotation.Config qualified as Config
 import FNotation.Diagnostic (HasReporter (getReporter), Reporter)

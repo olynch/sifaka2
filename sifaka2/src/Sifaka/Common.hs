@@ -20,6 +20,7 @@ where
 
 import Data.Bits
 import Data.ByteString (ByteString)
+import Data.Hashable (Hashable)
 import Data.IntMap (IntMap)
 import Data.Map (Map)
 import Data.Text (Text)
@@ -50,6 +51,7 @@ impossible = error "impossible"
 
 unimplemented :: (Dbg) => a
 unimplemented = error "unimplemented"
+
 ---------------------------------------------------------------------
 
 class ElemAt a i b | a -> i b where
@@ -91,7 +93,7 @@ bwdToList b = go b []
 ---------------------------------------------------------------------
 
 newtype Name = Name Text
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Hashable) via Text
 
 instance Pretty Name where
   pretty (Name s) = pretty s

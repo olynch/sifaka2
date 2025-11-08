@@ -1,23 +1,6 @@
-module Sifaka.Syntax
-  ( Id (..),
-    GlobalId (..),
-    BinOp (..),
-    Tm (..),
-    Ty (..),
-    Literal (..),
-    BD (..),
-    TopDecl (..),
-    Func (..),
-    Eval (..),
-    Module (..),
-    emptyModule,
-    addFunc,
-    addEval,
-  )
-where
+module Sifaka.Syntax where
 
 import Data.Map qualified as Map
-
 import Sifaka.Common
 
 data Id a = Id BwdIdx Name
@@ -27,7 +10,8 @@ data GlobalId a = GlobalId Name
 data BinOp = Add | Sub | Mul | Div
 
 data Ty
-  = TMetaApp MetaVar (Bwd Tm)
+  = TTopApp (GlobalId TypeDef) (Bwd Tm)
+  | TMetaApp MetaVar (Bwd Tm)
   | TInsertedMeta MetaVar (Bwd BD)
   | Fin Tm
   | Nat
@@ -44,7 +28,7 @@ data BD = Bound | Defined
 
 data Tm
   = LocalVar (Id Tm)
-  | TopApp (GlobalId Func) [Tm]
+  | TopApp (GlobalId Func) (Bwd Tm)
   | InsertedMeta MetaVar (Bwd BD)
   | MetaApp MetaVar (Bwd Tm)
   | Lit Literal
@@ -67,7 +51,18 @@ data Func = Func
 
 data Eval = Eval Tm Ty
 
-data TopDecl = TFunc Func | TEval Eval
+data TypeDef = TypeDef
+  { typeDefName :: Name,
+    typeDefArgs :: [(Name, Ty)],
+    typeDefBody :: Ty
+  }
+
+data Locals
+  = LNil
+  | LDef Locals Name Tm Ty
+  | LBind Locals Name Ty
+
+data TopDecl = TFunc Func | TEval Eval | TTypedDef TypeDef
 
 data Module = Module
   { moduleFuncs :: Map Name Func,
@@ -79,10 +74,11 @@ emptyModule :: Module
 emptyModule = Module (Map.empty) BwdNil BwdNil
 
 addFunc :: Module -> Func -> Module
-addFunc m f = m {
-  moduleFuncs = Map.insert (funcName f) f (moduleFuncs m),
-  moduleFuncsInOrder = moduleFuncsInOrder m :> f
-}
+addFunc m f =
+  m
+    { moduleFuncs = Map.insert (funcName f) f (moduleFuncs m),
+      moduleFuncsInOrder = moduleFuncsInOrder m :> f
+    }
 
 addEval :: Module -> Eval -> Module
 addEval m f = m {moduleEvals = moduleEvals m :> f}

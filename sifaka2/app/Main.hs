@@ -2,6 +2,7 @@
 
 module Main where
 
+import Control.Monad (when)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder (hPutBuilder)
 import Data.Map qualified as Map
@@ -33,12 +34,13 @@ import System.IO (stdout)
 import System.Process
 import Prelude hiding (lex)
 
-data Args = Args {
-  argsSourceName :: FilePath,
-  argsOut :: FilePath,
-  argsCodeGen :: Bool,
-  argsRun :: Bool
-}
+data Args = Args
+  { argsSourceName :: FilePath,
+    argsOut :: FilePath,
+    argsCodeGen :: Bool,
+    argsRun :: Bool,
+    argsDump :: Bool
+  }
 
 argsParser :: Opts.Parser Args
 argsParser =
@@ -47,6 +49,7 @@ argsParser =
     <*> argument str (metavar "OUT")
     <*> flag False True (long "compile" <> short 'c' <> help "compile the program")
     <*> flag False True (long "run" <> short 'r' <> help "run the compiled program")
+    <*> flag False True (long "dump" <> short 'd' <> help "dump the qbe")
 
 opts :: Opts.ParserInfo Args
 opts =
@@ -89,6 +92,7 @@ main = do
   if (argsCodeGen args)
     then do
       let irMod = genModule coreMod
+      when (argsDump args) $ hPutBuilder stdout (Qbe.txt irMod)
       Qbe.compile irMod (argsOut args)
       if (argsRun args)
         then callProcess (argsOut args) []

@@ -1,4 +1,4 @@
-module Sifaka.Value (Spine (..), Literal (..), Tm (..), Ty (..)) where
+module Sifaka.Value where
 
 import Sifaka.Common
 
@@ -9,8 +9,11 @@ data Spine
 newtype Literal = LitNat Word
   deriving (Eq)
 
+data Neutral
+  = NVar FwdIdx
+
 data Tm
-  = Var FwdIdx Name
+  = Neu Neutral
   | Flex MetaVar Spine
   | Lit Literal
   | Opaque
@@ -22,3 +25,7 @@ data Ty
   | Double
   | Record (Row Ty)
   | Arr Tm Ty
+
+data Env
+  = ENil
+  | EDef Env Tm

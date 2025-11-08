@@ -1,9 +1,8 @@
 module Sifaka.CodeGen where
 
-import Data.Functor ((<&>))
 import Control.Monad.State
+import Data.Functor ((<&>))
 import Data.Map qualified as Map
-
 import Sifaka.Common
 import Sifaka.Qbe
 import Sifaka.Syntax qualified as S
@@ -51,7 +50,6 @@ call1 fname retTy args = do
 call0 :: GlobalName -> [(AbiTy, Val)] -> BlockM ()
 call0 fname args = emit $ Call Nothing (VConst (CGlobal fname)) args
 
-
 freshLocal :: BlockM LocalName
 freshLocal = state $
   \bb ->
@@ -65,21 +63,23 @@ currentLabel = get <&> bbCurrentLabel
 finishBlock :: (LabelName -> Jump) -> BlockM ()
 finishBlock j = modify finishBlock'
   where
-    finishBlock' bb = bb {
-      bbNextBlock = i + 1,
-      bbInstructions = BwdNil,
-      bbPhis = BwdNil,
-      bbCurrentLabel = l,
-      bbBlocks = bbBlocks bb :> b
-    }
+    finishBlock' bb =
+      bb
+        { bbNextBlock = i + 1,
+          bbInstructions = BwdNil,
+          bbPhis = BwdNil,
+          bbCurrentLabel = l,
+          bbBlocks = bbBlocks bb :> b
+        }
       where
         i = bbNextBlock bb
         l = LabelName (FreshName i)
-        b = Block
-          (bbCurrentLabel bb)
-          (bwdToList $ bbPhis bb)
-          (bwdToList $ bbInstructions bb)
-          (j l)
+        b =
+          Block
+            (bbCurrentLabel bb)
+            (bwdToList $ bbPhis bb)
+            (bwdToList $ bbInstructions bb)
+            (j l)
 
 nextBlock :: BlockM ()
 nextBlock = finishBlock $ \l -> Jmp l
@@ -219,7 +219,8 @@ start = FuncDef [Export] Nothing "_start" [] blocks
 
 genModule :: S.Module -> Module
 genModule m =
-  let ?module = m in Module
-    []
-    []
-    (bwdToList $ fmap doFunc (S.moduleFuncsInOrder m) :> doMain (S.moduleEvals m))
+  let ?module = m
+   in Module
+        []
+        []
+        (bwdToList $ fmap doFunc (S.moduleFuncsInOrder m) :> doMain (S.moduleEvals m))

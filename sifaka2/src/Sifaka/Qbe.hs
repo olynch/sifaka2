@@ -289,8 +289,8 @@ instance ToText Phi where
     txt name
       <+> "="
       <> txt ty
-      <+> "phi"
-      <+> commaSep [txt b <+> txt v | (b, v) <- vs]
+        <+> "phi"
+        <+> commaSep [txt b <+> txt v | (b, v) <- vs]
 
 data Block = Block LabelName [Phi] [Inst] Jump
 
