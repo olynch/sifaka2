@@ -1,22 +1,24 @@
 module Sifaka.Syntax where
 
-import Data.Map qualified as Map
 import Sifaka.Common
-
-data Id a = Id BwdIdx Name
-
-data GlobalId a = GlobalId Name
+import Sifaka.Value qualified as V
 
 data BinOp = Add | Sub | Mul | Div
 
+data TyClo = TyClo
+  { tyCloArg :: Name,
+    tyCloDom :: Ty,
+    tyCloBody :: Ty
+  }
+
 data Ty
-  = TTopApp (GlobalId TypeDef) (Bwd Tm)
-  | TMetaApp MetaVar (Bwd Tm)
-  | TInsertedMeta MetaVar (Bwd BD)
+  = OfSig Sig
+  | TFlex MetaVar
   | Fin Tm
   | Nat
   | Double
   | Record (Row Ty)
+  | Pi TyClo
   | Arr Tm Ty
 
 data Literal
@@ -26,35 +28,55 @@ data Literal
 
 data BD = Bound | Defined
 
-data Tm
-  = LocalVar (Id Tm)
-  | TopApp (GlobalId Func) (Bwd Tm)
-  | InsertedMeta MetaVar (Bwd BD)
-  | MetaApp MetaVar (Bwd Tm)
-  | Lit Literal
-  | IToF Tm
-  | BinOp BinOp Tm Tm
-  | Block [(Name, Tm)] Tm
-  | RecordCon (Row Tm)
-  | Proj Tm Name
-  | ArrCon [Tm]
-  | ArrLam Name {- inferred length -} Tm {- return type-} Ty {- body -} Tm
-  | Index Tm Ty Tm
-  | Opaque
-
-data Func = Func
-  { funcName :: Name,
-    funcArgs :: [(Name, Ty)],
-    funcRetTy :: Ty,
-    funcBody :: Tm
+data For = For
+  { forVar :: Name,
+    forDom :: Tm,
+    forCod :: Ty,
+    forBody :: Tm
   }
 
-data Eval = Eval Tm Ty
+data Clo = Clo
+  { cloVar :: Name,
+    cloDom :: Ty,
+    cloCod :: Ty,
+    cloBody :: Tm
+  }
 
-data TypeDef = TypeDef
-  { typeDefName :: Name,
-    typeDefArgs :: [(Name, Ty)],
-    typeDefBody :: Ty
+data Tm
+  = -- Variables
+    LocalVar BwdIdx
+  | OfDef Def
+  | -- Builtins
+    Cast Tm Ty
+  | Lit Literal
+  | BinOp BinOp Tm Tm
+  | -- Pi
+    Lam Clo
+  | App Tm Tm
+  | -- Let blocks
+    Block [(Name, Tm)] Tm
+  | -- Record
+    RecordLit (Row Tm)
+  | Proj Tm Name
+  | -- Arrays
+    ArrLit [Tm]
+  | ArrLam For
+  | Index Tm Ty Tm
+  | -- Readback of opaque values
+    Opaque
+
+data Def = Def
+  { defName :: TopName,
+    defTy :: Ty,
+    defTyVal :: V.Ty,
+    defBody :: Tm,
+    defBodyVal :: V.Tm
+  }
+
+data Sig = Sig
+  { sigName :: TopName,
+    sigBody :: Ty,
+    sigBodyVal :: V.Ty
   }
 
 data Locals
@@ -62,23 +84,22 @@ data Locals
   | LDef Locals Name Tm Ty
   | LBind Locals Name Ty
 
-data TopDecl = TFunc Func | TEval Eval | TTypedDef TypeDef
+data TopDecl = TDef Def | TSig Sig | TTask Task
 
-data Module = Module
-  { moduleFuncs :: Map Name Func,
-    moduleFuncsInOrder :: Bwd Func,
-    moduleEvals :: Bwd Eval
+data Task = TEval Tm Ty
+
+data Namespace = Namespace
+  { namespaceSigs :: Bwd Sig,
+    namespaceDefs :: Bwd Def,
+    namespaceTasks :: Bwd Task
   }
 
-emptyModule :: Module
-emptyModule = Module (Map.empty) BwdNil BwdNil
+emptyNamespace :: Namespace
+emptyNamespace = Namespace BwdNil BwdNil BwdNil
 
-addFunc :: Module -> Func -> Module
-addFunc m f =
-  m
-    { moduleFuncs = Map.insert (funcName f) f (moduleFuncs m),
-      moduleFuncsInOrder = moduleFuncsInOrder m :> f
-    }
+addDef :: Namespace -> Def -> Namespace
+addDef m f =
+  m {namespaceDefs = namespaceDefs m :> f}
 
-addEval :: Module -> Eval -> Module
-addEval m f = m {moduleEvals = moduleEvals m :> f}
+addTask :: Namespace -> Task -> Namespace
+addTask m f = m {namespaceTasks = namespaceTasks m :> f}

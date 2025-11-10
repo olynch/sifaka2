@@ -1,0 +1,47 @@
+# Implementation
+
+## Toplevel and namespaces
+
+For now:
+
+Namespacing is done with `A.B.C`. "Default prefixes" can be entered and exited with `section A.B` and `endsection A.B`.
+
+Namespaces start with capitals, everything else must start with lowercase? This solves the problem of distinguishing between namespaces and field access, but it's a heavy price to pay.
+
+Alternatives include using `/` to separate namespaces, but this conflicts with division... We could use `÷` for division, or `//`, or `%`. We could use `~` for namespaces?
+
+OCaml solves this doing namespacing via the module system. But then we have to deal with signatures inside signatures...
+
+Let's use `/` for namespace separation, and `//` or `÷` for division.
+
+## Function types vs. judgments
+
+We should support second-class function types. Let's just have these as function types for now, and when we compile this round, we will figure out how to be more careful about them.
+
+So top-level bindings can either be types or values. Neither of these needs to be parametric, because values can be functions and we can use refinements to express parametric types? I'm not sure how much I love that, but let's stick with it for now.
+
+Actually, parametric small types are fine, because those are just functions. So I think we are good there.
+
+I think that we should call our types "signatures", so that the top-level declaration looks like:
+
+```
+sig Ring = [
+  car: Type
+  ...
+]
+```
+
+This will help distinguish types from signatures. In fact, we might as well go ahead and rename this in the source.
+
+Then we could define data types like
+
+```
+def Maybe (a : Type) : Type = %data [
+  'just : a -> Maybe a,
+  'nothing : Maybe a
+]
+```
+
+Or something like that...
+
+I still like the syntax of `M & [ .x = a ]` for refinements; we can keep that.

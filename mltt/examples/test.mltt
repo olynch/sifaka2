@@ -1,0 +1,36 @@
+def id (A : _) (x : A) : A = x
+
+def List (A : U) : U = (L : _) -> (A -> L -> L) -> L -> L
+
+def nil (A : _) : List A = L => cons => nil => nil
+
+def cons (A : _) (x : A) (xs : List A) : List A =
+  _ => cons => nil => cons x (xs _ cons nil)
+
+def Bool : U = (B : _) -> B -> B -> B
+
+def true : Bool = B => t => f => t
+
+def false : Bool = B => t => f => f
+
+def not (b : Bool) : Bool = _ => t => f => b _ f t
+
+def list1 : List Bool = cons _ (id _ true) (nil _)
+
+def Eq (A : _) (x : A) (y : A) : U = (P : A -> U) -> P x -> P y
+
+def refl (A : _) (x : A) : Eq A x x = P => px => px
+
+def Nat : U = (N : U) -> (N -> N) -> N -> N
+
+def four : Nat = N => s => z => s (s (s (s z)))
+
+def five : Nat = N => s => z => s (s (s (s (s z))))
+
+def six : Nat = N => s => z => s (s (s (s (s (s z)))))
+
+def add (n : Nat) (m : Nat) : Nat = _ => s => z => n _ s (m _ s z)
+
+def ten : Nat = add five five
+
+def eqTest : Eq _ (add five five) (add four six) = refl _ _

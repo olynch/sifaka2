@@ -5,11 +5,11 @@ module Sifaka.Elaboration where
 import Control.Applicative (empty)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
-import Data.Maybe (fromMaybe)
 import Data.IORef
-import Data.Vector.Mutable qualified as VM
+import Data.Maybe (fromMaybe)
 import Data.Vector.Hashtables
 import Data.Vector.Hashtables qualified as HT
+import Data.Vector.Mutable qualified as VM
 import FNotation.Diagnostic (Annot (..), Diagnostic (..), FileId (..), Loc (..), Marker (..), Reporter (..), Severity (..))
 import FNotation.FNtn as FNtn
 import FNotation.Prelude (ADoc)
@@ -17,10 +17,10 @@ import FNotation.Span
 import Prettyprinter
 import Sifaka.Common
 import Sifaka.Evaluation
+import Sifaka.Syntax (Locals (..))
 import Sifaka.Syntax qualified as S
-import Sifaka.Syntax (Locals(..))
+import Sifaka.Value (Env (..))
 import Sifaka.Value qualified as V
-import Sifaka.Value (Env(..))
 import Prelude hiding (error, lookup)
 
 data MetaEnv = MetaEnv Int
@@ -52,7 +52,7 @@ type StateArg = (?state :: State)
 
 type Elab a = StateArg => LenArg => EnvArg => LocalsArg => a
 
-scopeDefineLocal :: StateArg => FwdIdx -> Name -> V.Ty -> IO a -> IO a
+scopeDefineLocal :: (StateArg) => FwdIdx -> Name -> V.Ty -> IO a -> IO a
 scopeDefineLocal i x ty act = do
   let l = LocalInfo x i ty
   let scope = stateScope ?state
@@ -64,80 +64,52 @@ scopeDefineLocal i x ty act = do
 
 define :: Name -> S.Ty -> V.Ty -> S.Tm -> V.Tm -> Elab (IO a) -> Elab (IO a)
 define x tyS tyV tmS tmV act =
-  let i = ?len in
-  let
-    ?len = ?len + 1
-    ?env = EDef ?env tmV
-    ?locals = LDef ?locals x tmS tyS
-  in scopeDefineLocal i x tyV act
-
+  let i = ?len
+   in let ?len = ?len + 1
+          ?env = EDef ?env tmV
+          ?locals = LDef ?locals x tmS tyS
+       in scopeDefineLocal i x tyV act
 
 bind :: Name -> S.Ty -> V.Ty -> Elab (IO a) -> Elab (IO a)
 bind x tyS tyV act =
-  let
-    i = ?len
-    tmV = V.Neu (V.NVar i)
-  in let
-    ?len = ?len + 1
-    ?env = EDef ?env tmV
-    ?locals = LBind ?locals x tyS
-  in scopeDefineLocal i x tyV act
+  let i = ?len
+      tmV = V.Neu (V.NVar i)
+   in let ?len = ?len + 1
+          ?env = EDef ?env tmV
+          ?locals = LBind ?locals x tyS
+       in scopeDefineLocal i x tyV act
 
--- type CtxArg = (?ctx :: Ctx)
+-- | Types and terms used during elaboration have a strict syntactic component
+-- | and a lazy semantic component
+data Ty = Ty
+  { tyStx :: S.Ty,
+    tyVal :: ~V.Ty
+  }
 
--- type ModuleArg = (?module :: S.Module)
+data Tm = Tm
+  { tmStx :: S.Tm,
+    tmVal :: ~V.Tm
+  }
 
--- type ReporterArg = (?reporter :: Reporter)
+binop :: S.BinOp -> Tm -> Tm -> Tm
+binop op (Tm s1 _) (Tm s2 _) = (Tm (S.BinOp op s1 s2) V.Opaque)
 
--- type FileIdArg = (?fileId :: FileId)
+report :: (StateArg) => Diagnostic -> IO ()
+report d = do
+  let (Reporter r) = stateReporter ?state
+  r d
 
--- type MetaEnvArg = (?metaEnv :: IORef MetaEnv)
+error :: (StateArg) => Span -> ADoc -> IO ()
+error s msg = do
+  let l = Loc (stateFileId ?state) s
+  let m = Marker l Here
+  let d = Diagnostic ErrorS msg "" [m]
+  report d
 
--- type Elab a = FileIdArg => ReporterArg => MetaEnvArg => ModuleArg => CtxArg => a
-
--- -- | Types and terms used during elaboration have a strict syntactic component
--- -- | and a lazy semantic component
--- data Ty = Ty
---   { tyStx :: S.Ty,
---     tyVal :: ~V.Ty
---   }
-
--- data Tm = Tm
---   { tmStx :: S.Tm,
---     tmVal :: ~V.Tm
---   }
-
--- binop :: S.BinOp -> Tm -> Tm -> Tm
--- binop op (Tm s1 _) (Tm s2 _) = (Tm (S.BinOp op s1 s2) V.Opaque)
-
--- report :: (ReporterArg) => Diagnostic -> IO ()
--- report d = do
---   let (Reporter r) = ?reporter
---   r d
-
--- error :: (FileIdArg) => (ReporterArg) => Span -> ADoc -> IO ()
--- error s msg = do
---   let l = Loc ?fileId s
---   let m = Marker l Here
---   let d = Diagnostic ErrorS msg "" [m]
---   report d
-
--- lookup :: Elab (Name -> Maybe (BwdIdx, V.Tm, V.Ty))
--- lookup name = go (ctxLocals ?ctx) 0
---   where
---     go S.LNil _ = Nothing
---     go (S.LDef locals name' tm ty) i
---       | name == name' = Just (i, tm, ty)
---       | otherwise = go locals (i + 1)
---     go (S.LBind locals name' ty) i
---       | name == name' = Just (i, (V.Neu (V.NVar i)), ty)
---       | otherwise = go locals (i + 1)
-
--- bwdToFwd :: (CtxArg) => BwdIdx -> FwdIdx
--- bwdToFwd (BwdIdx i) = FwdIdx ((ctxLen ?ctx) - i - 1)
-
--- fwdToBwd :: (CtxArg) => FwdIdx -> BwdIdx
--- fwdToBwd (FwdIdx i) = BwdIdx ((ctxLen ?ctx) - i - 1)
+lookup :: Elab (Name -> IO ScopeEntry)
+lookup x = do
+  let scope = stateScope ?state
+  fromMaybe SENil <$> HT.lookup scope x
 
 -- getVar :: S.Locals -> FwdIdx -> BwdIdx -> V.Tm
 -- getVar S.LNil _ _ = impossible
@@ -147,26 +119,6 @@ bind x tyS tyV act =
 -- getVar (S.LBind l name _) i j
 --   | j == 0 = V.Var i name
 --   | otherwise = getVar l (i-1) (j-1)
-
--- evalLit :: S.Literal -> V.Tm
--- evalLit (S.LitFin _) = V.Opaque
--- evalLit (S.LitNat n) = V.Lit (V.LitNat n)
--- evalLit (S.LitDouble _) = V.Opaque
-
--- eval :: Elab (S.Tm -> V.Tm)
--- eval (S.LocalVar (S.Id i _)) = getVar (ctxLocals ?ctx) (FwdIdx (ctxLen ?ctx)) i
--- eval (S.TopApp _f _args) = impossible
--- eval (S.InsertedMeta _mv _bds) = impossible
--- eval (S.MetaApp _mv _args) = impossible
--- eval (S.Lit lit) = evalLit lit
--- eval (S.BinOp _ _ _) = V.Opaque
--- eval (S.Block _bindings _ret) = impossible
--- eval (S.RecordCon _) = V.Opaque
--- eval (S.Proj _ _) = V.Opaque
--- eval (S.ArrCon _) = V.Opaque
--- eval (S.ArrLam _ _ _ _) = V.Opaque
--- eval (S.Index _ _ _) = V.Opaque
--- eval S.Opaque = V.Opaque
 
 -- freshMeta :: Elab (IO MetaVar)
 -- freshMeta = atomicModifyIORef ?metaEnv (\(MetaEnv i) -> (MetaEnv (i + 1), MetaVar i))

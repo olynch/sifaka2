@@ -1,31 +1,49 @@
 module Sifaka.Value where
 
 import Sifaka.Common
-
-data Spine
-  = SId
-  | SApp Spine Tm
+import Data.Foldable (foldr')
+import Data.Map.Ordered.Strict qualified as OMap
+import Data.Map.Ordered.Strict (OMap, (>|))
 
 newtype Literal = LitNat Word
   deriving (Eq)
 
-data Neutral
-  = NVar FwdIdx
+data TyClo = TyClo
+  { tyCloArg :: Name,
+    tyCloDom :: Ty,
+    tyCloBody :: Tm -> Ty
+  }
+
+data Clo = Clo
+  { cloArg :: Name,
+    cloBody :: Tm -> Tm
+  }
+
+data Spine
+  = SId
+  | SApp Spine Tm
+  | SProj Spine Name
 
 data Tm
-  = Neu Neutral
+  = Rigid FwdIdx Spine
   | Flex MetaVar Spine
   | Lit Literal
+  | Lam Clo
+  | RecordLit (OMap Name Tm)
   | Opaque
+
+data Tele = Tele (OMap Name (OMap Name Tm -> Ty))
+
+teleFromList :: [(Name, OMap Name Tm -> Ty)] -> Tele
+teleFromList = Tele . foldr' (\(x, f) m -> m >| (x, f)) OMap.empty
 
 data Ty
   = TFlex MetaVar Spine
   | Fin Tm
   | Nat
   | Double
-  | Record (Row Ty)
+  | Pi TyClo
+  | Record Tele
   | Arr Tm Ty
 
-data Env
-  = ENil
-  | EDef Env Tm
+type Env = Bwd Tm

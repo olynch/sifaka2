@@ -74,7 +74,7 @@ lex r config bs = do
   pure $ reverse $ tokens s'
 
 opChars :: Vector Char
-opChars = V.fromList ['+', '*', ':', '=', '/', '>', '<', '↦', '!', '&']
+opChars = V.fromList ['+', '-', '*', ':', '=', '/', '>', '<', '↦', '!', '&']
 
 run :: Lex ()
 run = do

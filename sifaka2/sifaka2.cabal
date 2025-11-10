@@ -34,20 +34,21 @@ library
 
   ghc-options: -Wall
   build-depends:
-                base ^>=4.19.2.0,
-                bytestring >=0.12.1.0,
-                containers,
-                dynamic-array,
-                fnotation ^>=0.2.0.0,
-                hashable >= 1.5.0.0,
-                mtl,
-                prettyprinter,
-                process >=1.6.25.0,
-                temporary,
-                text,
-                transformers,
-                vector,
-                vector-hashtables
+    base ^>=4.19.2.0,
+    bytestring >=0.12.1.0,
+    containers,
+    dynamic-array,
+    fnotation ^>=0.2.0.0,
+    hashable >=1.5.0.0,
+    mtl,
+    ordered-containers,
+    prettyprinter,
+    process >=1.6.25.0,
+    temporary,
+    text,
+    transformers,
+    vector,
+    vector-hashtables,
 
 executable sifaka2
   main-is: Main.hs

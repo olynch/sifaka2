@@ -1,0 +1,68 @@
+cabal-version:      3.0
+name:               mltt
+version:            0.1.0.0
+-- synopsis:
+-- description:
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Owen Lynch
+maintainer:         root@owenlynch.org
+-- copyright:
+category:           Language
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common warnings
+    ghc-options: -Wall -Wno-name-shadowing
+
+executable mltt
+    import:           warnings
+    main-is:          Main.hs
+    other-modules:
+        Syntax,
+        Value,
+        Evaluation,
+        Elaboration,
+        Unification,
+        Pretty,
+        Common
+
+    -- other-extensions:
+    build-depends:
+        base ^>=4.19.2.0,
+        bytestring >=0.12.1.0,
+        containers,
+        dynamic-array,
+        fnotation ^>=0.2.0.0,
+        hashable >=1.5.0.0,
+        mtl,
+        optparse-applicative,
+        ordered-containers,
+        prettyprinter,
+        primdata,
+        process >=1.6.25.0,
+        temporary,
+        text,
+        transformers,
+        vector,
+        vector-hashtables,
+
+
+    ghc-options:
+        -Wall
+        -prof
+        -with-rtsopts=-xc
+
+    default-extensions:
+        CPP
+        DerivingVia
+        FunctionalDependencies
+        ImplicitParams
+        LambdaCase
+        OverloadedStrings
+        PatternSynonyms
+        Strict
+        StrictData
+    hs-source-dirs:   app
+    default-language: GHC2021

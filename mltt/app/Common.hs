@@ -1,4 +1,4 @@
-module Sifaka.Common
+module Common
   ( Map,
     IntMap,
     Vector,
@@ -14,6 +14,8 @@ module Sifaka.Common
     TopName (..),
     Row (..),
     MetaVar (..),
+    LenArg,
+    runIO,
     impossible,
     unimplemented,
   )
@@ -24,8 +26,10 @@ import Data.ByteString (ByteString)
 import Data.Hashable (Hashable)
 import Data.IntMap (IntMap)
 import Data.Map (Map)
+import Data.String (IsString)
 import Data.Text (Text)
 import Data.Vector (Vector)
+import IO (runIO)
 import Prettyprinter
 
 ---------------------------------------------------------------------
@@ -58,8 +62,8 @@ unimplemented = error "unimplemented"
 class ElemAt a i b | a -> i b where
   elemAt :: a -> i -> b
 
-newtype FwdIdx = FwdIdx Word
-  deriving (Eq, Ord, Show, Num, Enum, Bits, Integral, Real) via Word
+newtype FwdIdx = FwdIdx { unFwdIdx :: Int }
+  deriving (Eq, Ord, Show, Num, Enum, Bits, Integral, Real) via Int
 
 infixr 4 :<
 
@@ -71,8 +75,8 @@ instance ElemAt (Fwd a) FwdIdx a where
     | i == 0 = x
     | otherwise = elemAt xs (i + 1)
 
-newtype BwdIdx = BwdIdx Word
-  deriving (Eq, Ord, Show, Num, Enum, Bits, Integral, Real) via Word
+newtype BwdIdx = BwdIdx Int
+  deriving (Eq, Ord, Show, Num, Enum, Bits, Integral, Real) via Int
 
 infixl 4 :>
 
@@ -94,7 +98,7 @@ bwdToList b = go b []
 ---------------------------------------------------------------------
 
 newtype Name = Name Text
-  deriving (Eq, Ord, Hashable) via Text
+  deriving (Eq, Ord, Hashable, IsString, Show) via Text
 
 data TopName = TNSing Name | TNSnoc TopName Name
 
@@ -110,3 +114,5 @@ instance Functor Row where
 
 newtype MetaVar = MetaVar Int
   deriving (Eq, Ord, Num) via Int
+
+type LenArg = (?len :: FwdIdx)
