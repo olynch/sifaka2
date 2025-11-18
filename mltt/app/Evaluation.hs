@@ -1,16 +1,16 @@
 module Evaluation where
 
 import Common
-import Unification
 import Syntax qualified as S
+import Unification
 import Value qualified as V
 
 type EnvArg = (?env :: V.Env)
 
 class Eval a b | a -> b where
-  eval :: EnvArg => MetaCtxArg => a -> b
+  eval :: (EnvArg) => (MetaCtxArg) => a -> b
 
-evalIn :: MetaCtxArg => Eval a b => V.Env -> a -> b
+evalIn :: (MetaCtxArg) => (Eval a b) => V.Env -> a -> b
 evalIn e = let ?env = e in eval
 
 app :: V.Tm -> V.Tm -> V.Tm
@@ -37,9 +37,8 @@ instance Eval S.Tm V.Tm where
   eval (S.Block bindings body) = go bindings
     where
       go [] = eval body
-      go ((_, tm):rest) = let ?env = (?env :> eval tm) in go rest
+      go ((_, tm) : rest) = let ?env = (?env :> eval tm) in go rest
   eval (S.Meta mv) = eval mv
-
 
 class Readback a b | a -> b where
   readb :: MetaCtxArg => LenArg => a -> b
@@ -58,7 +57,7 @@ defunctionalize :: MetaCtxArg => LenArg => (V.Tm -> V.Tm) -> S.Tm
 defunctionalize f =
   let i = ?len in let ?len = ?len + 1 in readb (f (V.Rigid i V.SId))
 
-force :: MetaCtxArg => V.Tm -> V.Tm
+force :: (MetaCtxArg) => V.Tm -> V.Tm
 force = \case
   V.Flex mv sp | Solved t <- lookupMeta mv -> force (appSp t sp)
   t -> t

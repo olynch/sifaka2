@@ -50,7 +50,7 @@ data State = State
 
 type StateArg = (?state :: State)
 
-type Elab a = StateArg => LenArg => EnvArg => LocalsArg => a
+type Elab a = (StateArg) => (LenArg) => (EnvArg) => (LocalsArg) => a
 
 scopeDefineLocal :: (StateArg) => FwdIdx -> Name -> V.Ty -> IO a -> IO a
 scopeDefineLocal i x ty act = do

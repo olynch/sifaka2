@@ -1,9 +1,9 @@
 module Sifaka.Value where
 
-import Sifaka.Common
 import Data.Foldable (foldr')
-import Data.Map.Ordered.Strict qualified as OMap
 import Data.Map.Ordered.Strict (OMap, (>|))
+import Data.Map.Ordered.Strict qualified as OMap
+import Sifaka.Common
 
 newtype Literal = LitNat Word
   deriving (Eq)

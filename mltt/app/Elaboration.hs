@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveAnyClass, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Elaboration where
@@ -10,14 +11,17 @@ import Data.String (fromString)
 import Data.Vector.Hashtables
 import Data.Vector.Hashtables qualified as HT
 import Data.Vector.Mutable qualified as VM
-
-import FNotation.FNtn hiding (Error)
-
 import Evaluation
+import FNotation.FNtn hiding (Error)
 import Syntax (Locals (..), LocalsArg)
 import Syntax qualified as S
 import Unification
 import Value qualified as V
+import Pretty
+
+import Prelude hiding (putStrLn)
+import Data.Text.Lazy.IO (putStrLn)
+import Data.Text.Lazy.Builder (toLazyText)
 
 data PRen = PRen
   { pRenDom :: FwdIdx,
@@ -38,7 +42,7 @@ data ElabError = NameNotInScope Name | CantUnify V.Tm V.Tm | UnexpectedNotation
 data Error = Error Locals ElabError
   deriving (Show, Exception)
 
-invert :: MetaCtxArg => LenArg => V.Spine -> IO PRen
+invert :: (MetaCtxArg) => (LenArg) => V.Spine -> IO PRen
 invert sp = do
   let go :: V.Spine -> IO (FwdIdx, IM.IntMap FwdIdx)
       go V.SId = pure (0, mempty)
@@ -52,14 +56,14 @@ invert sp = do
   (dom, ren) <- go sp
   pure $ PRen dom ?len ren
 
-rename :: MetaCtxArg => MetaVar -> PRen -> V.Tm -> IO S.Tm
+rename :: (MetaCtxArg) => MetaVar -> PRen -> V.Tm -> IO S.Tm
 rename m pren v = go pren v
   where
-    goSp :: MetaCtxArg => PRen -> S.Tm -> V.Spine -> IO S.Tm
+    goSp :: (MetaCtxArg) => PRen -> S.Tm -> V.Spine -> IO S.Tm
     goSp _ t V.SId = pure t
     goSp pren t (V.SApp sp u) = S.App <$> goSp pren t sp <*> go pren u
 
-    go :: MetaCtxArg => PRen -> V.Tm -> IO S.Tm
+    go :: (MetaCtxArg) => PRen -> V.Tm -> IO S.Tm
     go pren t = case force t of
       V.Flex m' sp
         | m == m' -> throwIO UnifyError
@@ -77,18 +81,18 @@ lams l = go 0
     go x t | x == l = t
     go x t = S.Lam (fromString $ "x" ++ show (x + 1)) $ go (x + 1) t
 
-solve :: MetaCtxArg => LenArg => MetaVar -> V.Spine -> V.Tm -> IO ()
+solve :: (MetaCtxArg) => (LenArg) => MetaVar -> V.Spine -> V.Tm -> IO ()
 solve m sp rhs = do
   pren <- invert sp
   rhs <- rename m pren rhs
   let solution = evalIn BwdNil $ lams (pRenDom pren) rhs
   writeMeta m (Solved solution)
 
-unifyIntro :: MetaCtxArg => LenArg => (V.Tm -> V.Tm) -> (V.Tm -> V.Tm) -> IO ()
+unifyIntro :: (MetaCtxArg) => (LenArg) => (V.Tm -> V.Tm) -> (V.Tm -> V.Tm) -> IO ()
 unifyIntro t t' =
   let l = ?len in let ?len = ?len + 1 in unify (t (V.Var l)) (t' (V.Var l))
 
-unifySp :: MetaCtxArg => LenArg => V.Spine -> V.Spine -> IO ()
+unifySp :: (MetaCtxArg) => (LenArg) => V.Spine -> V.Spine -> IO ()
 unifySp sp sp' = case (sp, sp') of
   (V.SId, V.SId) -> pure ()
   (V.SApp sp t, V.SApp sp' t') -> do
@@ -96,7 +100,7 @@ unifySp sp sp' = case (sp, sp') of
     unify t t'
   _ -> throwIO UnifyError
 
-unify :: MetaCtxArg => LenArg => V.Tm -> V.Tm -> IO ()
+unify :: (MetaCtxArg) => (LenArg) => V.Tm -> V.Tm -> IO ()
 unify t t' = case (force t, force t') of
   (V.Lam _ t, V.Lam _ t') -> unifyIntro t t'
   (t, V.Lam _ t') -> unifyIntro (app t) t'
@@ -122,18 +126,19 @@ type ScopeArg = (?scope :: Scope)
 type Elab a = MetaCtxArg => ScopeArg => LocalsArg => LenArg => EnvArg => a
 
 unifyCatch :: Elab (V.Tm -> V.Tm -> IO ())
-unifyCatch t t' = do
-  unify t t'
-  `catch` \UnifyError ->
-    throwIO $ Error ?locals (CantUnify t t')
+unifyCatch t t' =
+  do
+    unify t t'
+    `catch` \UnifyError ->
+      throwIO $ Error ?locals (CantUnify t t')
 
-findInScope :: ScopeArg => Name -> IO ScopeEntry
-findInScope x = HT.lookup ?scope x >>= \case
-  Just se -> pure se
-  Nothing -> pure SENil
+findInScope :: (ScopeArg) => Name -> IO ScopeEntry
+findInScope x =
+  HT.lookup ?scope x >>= \case
+    Just se -> pure se
+    Nothing -> pure SENil
 
-
-scopeDefineLocal :: ScopeArg => FwdIdx -> Name -> V.Ty -> IO a -> IO a
+scopeDefineLocal :: (ScopeArg) => FwdIdx -> Name -> V.Ty -> IO a -> IO a
 scopeDefineLocal i x ty act = do
   old <- findInScope x
   HT.insert ?scope x (SELocal old i ty)
@@ -143,24 +148,20 @@ scopeDefineLocal i x ty act = do
 
 bind :: Name -> V.Ty -> Elab (V.Tm -> IO a) -> Elab (IO a)
 bind x a act =
-  let
-    i = ?len
-    v = V.Var i
-  in let
-    ?env = ?env :> v
-    ?len = ?len + 1
-    ?locals = LBind ?locals x
-  in
-    scopeDefineLocal i x a (act v)
+  let i = ?len
+      v = V.Var i
+   in let ?env = ?env :> v
+          ?len = ?len + 1
+          ?locals = LBind ?locals x
+       in scopeDefineLocal i x a (act v)
 
 def :: Name -> S.Tm -> V.Tm -> V.Ty -> Elab (IO a) -> Elab (IO a)
 def x t v a act =
-  let i = ?len in let
-    ?env = ?env :> v
-    ?len = ?len + 1
-    ?locals = LDef ?locals x t
-  in
-    scopeDefineLocal i x a act
+  let i = ?len
+   in let ?env = ?env :> v
+          ?len = ?len + 1
+          ?locals = LDef ?locals x t
+       in scopeDefineLocal i x a act
 
 syn :: Elab (FNtn -> IO (S.Tm, V.Ty))
 syn (L _ n0) = case n0 of
@@ -169,20 +170,20 @@ syn (L _ n0) = case n0 of
     t <- freshMeta
     pure (t, a)
   Ident rx ->
-    let x = Name rx in
-    findInScope x >>= \case
-      SELocal _ i ty -> pure (S.LocalVar (readb i), ty)
-      SENil -> throw $ Error ?locals (NameNotInScope x)
+    let x = Name rx
+     in findInScope x >>= \case
+          SELocal _ i ty -> pure (S.LocalVar (readb i), ty)
+          SENil -> throw $ Error ?locals (NameNotInScope x)
   Keyword "U" -> pure (S.U, V.U)
   App2
     (L _ (Keyword "->"))
     (L _ (App2 (L _ (Keyword ":")) (L _ (Ident rx)) an))
     bn -> do
-    let x = Name rx
-    a <- chk V.U an
-    let va = eval a
-    b <- bind x va $ \_ -> chk V.U bn
-    pure (S.Pi x a b, V.U)
+      let x = Name rx
+      a <- chk V.U an
+      let va = eval a
+      b <- bind x va $ \_ -> chk V.U bn
+      pure (S.Pi x a b, V.U)
   App2 (L _ (Keyword "->")) an bn -> do
     let x = Name "_"
     a <- chk V.U an
@@ -210,16 +211,17 @@ syn (L _ n0) = case n0 of
 
     x <- chk dom xn
     pure (S.App f x, cod (eval x))
-  Block bindings (Just retN) -> go bindings BwdNil where
-    go [] bound = do
-      (retS, retTy) <- syn retN
-      pure (S.Block (bwdToList bound) retS, retTy)
-    go (n:rest) bound = do
-      let (x, tn) = case n of
-            L _ (App2 (L _ (Keyword "=")) (L _ (Ident rx)) tn) -> (Name rx, tn)
-            _ -> throw $ Error ?locals UnexpectedNotation
-      (t, tty) <- syn tn
-      def x t (eval t) tty $ go rest (bound :> (x, t))
+  Block bindings (Just retN) -> go bindings BwdNil
+    where
+      go [] bound = do
+        (retS, retTy) <- syn retN
+        pure (S.Block (bwdToList bound) retS, retTy)
+      go (n : rest) bound = do
+        let (x, tn) = case n of
+              L _ (App2 (L _ (Keyword "=")) (L _ (Ident rx)) tn) -> (Name rx, tn)
+              _ -> throw $ Error ?locals UnexpectedNotation
+        (t, tty) <- syn tn
+        def x t (eval t) tty $ go rest (bound :> (x, t))
   _ -> throw $ Error ?locals UnexpectedNotation
 
 chk :: Elab (V.Ty -> FNtn -> IO S.Tm)
@@ -227,16 +229,17 @@ chk a n@(L _ n0) = case (n0, force a) of
   (App2 (L _ (Keyword "=>")) (L _ (Ident rx)) t, V.Pi _ a b) -> do
     let x = Name rx
     S.Lam x <$> (bind x a $ \v -> chk (b v) t)
-  (Block bindings (Just retN), a) -> go bindings BwdNil where
-    go [] bound = do
-      retS <- chk a retN
-      pure $ S.Block (bwdToList bound) retS
-    go (n:rest) bound = do
-      let (x, tn) = case n of
-            L _ (App2 (L _ (Keyword "=")) (L _ (Ident rx)) tn) -> (Name rx, tn)
-            _ -> throw $ Error ?locals UnexpectedNotation
-      (t, tty) <- syn tn
-      def x t (eval t) tty $ go rest (bound :> (x, t))
+  (Block bindings (Just retN), a) -> go bindings BwdNil
+    where
+      go [] bound = do
+        retS <- chk a retN
+        pure $ S.Block (bwdToList bound) retS
+      go (n : rest) bound = do
+        let (x, tn) = case n of
+              L _ (App2 (L _ (Keyword "=")) (L _ (Ident rx)) tn) -> (Name rx, tn)
+              _ -> throw $ Error ?locals UnexpectedNotation
+        (t, tty) <- syn tn
+        def x t (eval t) tty $ go rest (bound :> (x, t))
   _ -> do
     (t, b) <- syn n
     unifyCatch a b
@@ -262,23 +265,33 @@ asName (L _ (Ident name)) = pure $ Name name
 asName (L _ _) = throwIO $ Error ?locals UnexpectedNotation
 
 elabWithArgs :: forall a. [FNtn] -> Elab ([(Name, S.Ty)] -> IO a) -> Elab (IO a)
-elabWithArgs ns act = go ns [] where
-  go :: Elab ([FNtn] -> [(Name, S.Ty)] -> IO a)
-  go [] args = act (reverse args)
-  go (argN : rest) args = do
-    (nameN, tyN) <- asBinding argN
-    name <- asName nameN
-    tyS <- chk V.U tyN
-    let tyV = eval tyS
-    bind name tyV $ \_ -> go rest ((name, tyS) : args)
+elabWithArgs ns act = go ns []
+  where
+    go :: Elab ([FNtn] -> [(Name, S.Ty)] -> IO a)
+    go [] args = act (reverse args)
+    go (argN : rest) args = do
+      (nameN, tyN) <- asBinding argN
+      name <- asName nameN
+      tyS <- chk V.U tyN
+      let tyV = eval tyS
+      bind name tyV $ \_ -> go rest ((name, tyS) : args)
 
 wrapLams :: S.Tm -> [(Name, S.Ty)] -> S.Tm
 wrapLams t [] = t
-wrapLams t ((name, _):xs) = S.Lam name (wrapLams t xs)
+wrapLams t ((name, _) : xs) = S.Lam name (wrapLams t xs)
 
 wrapPis :: S.Ty -> [(Name, S.Ty)] -> S.Ty
 wrapPis b [] = b
-wrapPis b ((name, a):xs) = S.Pi name a (wrapPis b xs)
+wrapPis b ((name, a) : xs) = S.Pi name a (wrapPis b xs)
+
+localsToNames :: S.Locals -> Bwd Name
+localsToNames = \case
+  S.LNil -> BwdNil
+  S.LDef l x _ -> (localsToNames l :> x)
+  S.LBind l x -> (localsToNames l :> x)
+
+dump :: Pretty a => Elab (a -> IO ())
+dump x = putStrLn $ toLazyText $ pretty (localsToNames ?locals) x
 
 topDecl :: Elab (FNtnTop -> IO (Name, S.Ty, S.Tm))
 topDecl (FNtnTop "def" _ n) = do
@@ -286,19 +299,22 @@ topDecl (FNtnTop "def" _ n) = do
   (app, retTyN) <- asBinding pat
   (name, argNs) <- asApplication app
   elabWithArgs argNs $ \args -> do
-   do
-     retTyS <- chk V.U retTyN
-     let retTyV = eval retTyS
-     bodyS <- chk retTyV bodyN
-     pure (name, wrapPis retTyS args, wrapLams bodyS args)
+    do
+      retTyS <- chk V.U retTyN
+      let retTyV = eval retTyS
+      bodyS <- chk retTyV bodyN
+      let ty = wrapPis retTyS args
+      let stx = wrapLams bodyS args
+      pure (name, ty, stx)
 topDecl _ = throwIO $ Error ?locals UnexpectedNotation
 
 topDecls :: Elab ([FNtnTop] -> IO ())
 topDecls [] = pure ()
-topDecls (tn:rest) = do
+topDecls (tn : rest) = do
   (name, a, t) <- topDecl tn
   let v = eval t
   let av = eval a
+  dump (S.Def name (readb av) (readb v))
   unsolvedMetas >>= \case
     True -> error $ "unsolved metas in " ++ show name
     False -> pure ()
@@ -308,10 +324,9 @@ elabTop :: [FNtnTop] -> IO ()
 elabTop tns = do
   mctx <- newMetaCtx
   scope <- HT.initialize 10
-  let
-    ?mctx = mctx
-    ?scope = scope
-    ?locals = LNil
-    ?len = 0
-    ?env = BwdNil
-    in topDecls tns
+  let ?mctx = mctx
+      ?scope = scope
+      ?locals = LNil
+      ?len = 0
+      ?env = BwdNil
+   in topDecls tns

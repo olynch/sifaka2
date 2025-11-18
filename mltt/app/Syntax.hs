@@ -22,3 +22,5 @@ instance Show Locals where
   show _ = "<locals>"
 
 type LocalsArg = (?locals :: Locals)
+
+data Def = Def Name Ty Tm

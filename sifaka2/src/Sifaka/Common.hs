@@ -101,7 +101,7 @@ data TopName = TNSing Name | TNSnoc TopName Name
 instance Pretty Name where
   pretty (Name s) = pretty s
 
-newtype Row a = Row { unRow :: [(Name, a)] }
+newtype Row a = Row {unRow :: [(Name, a)]}
 
 instance Functor Row where
   fmap f (Row entries) = Row (fmap (\(n, x) -> (n, f x)) entries)

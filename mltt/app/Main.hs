@@ -1,10 +1,9 @@
 module Main where
 
 import Data.ByteString qualified as BS
-
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-
+import Elaboration
 import FNotation
 import FNotation.Diagnostic qualified as FD
 import Options.Applicative
@@ -24,9 +23,6 @@ import Options.Applicative
     (<**>),
   )
 import Options.Applicative qualified as Opts
-import Elaboration
-
-
 import Prelude hiding (lex)
 
 data Args = Args

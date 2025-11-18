@@ -62,7 +62,7 @@ unimplemented = error "unimplemented"
 class ElemAt a i b | a -> i b where
   elemAt :: a -> i -> b
 
-newtype FwdIdx = FwdIdx { unFwdIdx :: Int }
+newtype FwdIdx = FwdIdx {unFwdIdx :: Int}
   deriving (Eq, Ord, Show, Num, Enum, Bits, Integral, Real) via Int
 
 infixr 4 :<
@@ -105,7 +105,7 @@ data TopName = TNSing Name | TNSnoc TopName Name
 instance Pretty Name where
   pretty (Name s) = pretty s
 
-newtype Row a = Row { unRow :: [(Name, a)] }
+newtype Row a = Row {unRow :: [(Name, a)]}
 
 instance Functor Row where
   fmap f (Row entries) = Row (fmap (\(n, x) -> (n, f x)) entries)
